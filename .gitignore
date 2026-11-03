@@ -1,0 +1,64 @@
+# ==============================================================================
+# VCF Enterprise MCP .gitignore
+# Ignore cache, build artifacts, environments, and sensitive local files
+# ==============================================================================
+
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Build & packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Testing & Coverage
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.pytest_cache/
+.tox/
+.cache
+
+# Linters
+.mypy_cache/
+.ruff_cache/
+
+# OS and IDE
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs and local databases & credentials
+*.log
+local_secrets/
+.secrets/
+vault_local.db
+local_vault.json
+secrets_local.json
+.vcf_mcp/
+.vcf-mcp/
+*.pem
+*.key
+
+
+# Local runtime state and generated media scratch
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+vcf_control_plane.db
+.vcf_mcp/
+audit_events.jsonl

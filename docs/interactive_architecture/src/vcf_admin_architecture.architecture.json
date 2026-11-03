@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "VCF Infrastructure Engineer Architectural Guide",
+    "subtitle": "How AI Assistants & vRO securely interact with vCenter, NSX, and SDDC Manager via Enterprise MCP",
+    "output": "vcf_enterprise_mcp/docs/interactive_architecture/vcf_admin_architecture.html",
+    "visual_preset": "blueprint",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "vcf-ingress",
+        "label": "1. Ingress & Automation (vRO / AI)",
+        "focus": ["vro_user", "ai_agent", "f5_alb", "mcp_gateway"],
+        "note": "AI agents and vRO workflows connect via HTTPS:443 through corporate ALB using standard OAuth/OIDC bearer tokens."
+      },
+      {
+        "id": "vcf-security",
+        "label": "2. Zero-Trust Credential & Change Gate",
+        "focus": ["cyberark_pam", "mcp_cred_broker", "mcp_gateway", "audit_db"],
+        "note": "Zero disk credentials. Ephemeral CyberArk PAM pull to RAM only. Two-stage approval gate halts accidental outages."
+      },
+      {
+        "id": "vcf-egress",
+        "label": "3. Direct VCF Fleet Execution",
+        "focus": ["mcp_gateway", "sddc_mgr", "vc_fleet", "nsx_cluster"],
+        "note": "Direct REST API calls to SDDC Manager, vCenter clusters, and NSX with pinned IPs and postcondition checks."
+      }
+    ]
+  },
+  "components": [
+    { "id": "vro_user", "type": "external", "label": "vRO / Aria / PowerCLI", "sublabel": "IT Automation & Admins", "pos": [40, 50], "size": [140, 60], "tag": "automation" },
+    { "id": "ai_agent", "type": "external", "label": "AI Assistant / Copilot", "sublabel": "Claude Code / Cursor", "pos": [40, 185], "size": [140, 60], "tag": "AI client" },
+    { "id": "cyberark_pam", "type": "security", "label": "CyberArk PAM Vault", "sublabel": "CCP / AAM REST :443", "pos": [40, 320], "size": [140, 60], "tag": "PAM vault" },
+    { "id": "f5_alb", "type": "security", "label": "NSX ALB / F5 VIP", "sublabel": "TLS 1.3 Ingress :443", "pos": [270, 115], "size": [140, 60], "tag": "load balancer" },
+    { "id": "mcp_cred_broker", "type": "security", "label": "RAM-Only Cred Broker", "sublabel": "Zero-Disk Secret Cache", "pos": [270, 320], "size": [140, 60], "tag": "ephemeral auth" },
+    { "id": "mcp_gateway", "type": "backend", "label": "VCF MCP Policy Engine", "sublabel": "TOCTOU Fencing & Approvals", "pos": [500, 115], "size": [140, 60], "tag": "control plane" },
+    { "id": "audit_db", "type": "database", "label": "Audit & Lease Store", "sublabel": "SQLite WAL / Postgres HA", "pos": [500, 320], "size": [140, 60], "tag": "tamper-proof" },
+    { "id": "sddc_mgr", "type": "cloud", "label": "SDDC Manager", "sublabel": "Domain Lifecycle :443", "pos": [730, 50], "size": [140, 60], "tag": "management" },
+    { "id": "vc_fleet", "type": "cloud", "label": "vCenter Clusters", "sublabel": "Mgmt & Workload WLDs", "pos": [730, 185], "size": [140, 60], "tag": "compute & DRS" },
+    { "id": "nsx_cluster", "type": "cloud", "label": "NSX-T Manager Cluster", "sublabel": "Overlays & Segments :443", "pos": [730, 320], "size": [140, 60], "tag": "networking" }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Enterprise Automation & Ingress Zone", "wraps": ["vro_user", "ai_agent", "cyberark_pam"] },
+    { "kind": "region", "label": "VCF Enterprise MCP Appliance Enclave", "wraps": ["f5_alb", "mcp_cred_broker", "mcp_gateway", "audit_db"] },
+    { "kind": "region", "label": "VMware Cloud Foundation (VCF) Infrastructure Fabric", "wraps": ["sddc_mgr", "vc_fleet", "nsx_cluster"] }
+  ],
+  "connections": [
+    { "id": "vro-alb", "from": "vro_user", "to": "f5_alb", "variant": "emphasis", "route": "straight" },
+    { "id": "ai-alb", "from": "ai_agent", "to": "f5_alb", "variant": "emphasis", "route": "straight" },
+    { "id": "pam-cred", "from": "cyberark_pam", "to": "mcp_cred_broker", "variant": "security", "route": "straight" },
+    { "id": "alb-gw", "from": "f5_alb", "to": "mcp_gateway", "variant": "emphasis", "route": "straight" },
+    { "id": "cred-gw", "from": "mcp_cred_broker", "to": "mcp_gateway", "variant": "security", "route": "straight" },
+    { "id": "gw-audit", "from": "mcp_gateway", "to": "audit_db", "variant": "dashed", "route": "straight" },
+    { "id": "gw-sddc", "from": "mcp_gateway", "to": "sddc_mgr", "variant": "emphasis", "route": "straight" },
+    { "id": "gw-vc", "from": "mcp_gateway", "to": "vc_fleet", "variant": "emphasis", "route": "straight" },
+    { "id": "gw-nsx", "from": "mcp_gateway", "to": "nsx_cluster", "variant": "emphasis", "route": "straight" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Ingress & Authentication",
+      "items": [
+        "AI tools & vRO connect via HTTPS:443 through corporate VIP",
+        "Enterprise OIDC/OAuth bearer tokens enforce operator identity",
+        "Zero exposure to public internet; 100% on-prem friendly"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Two-Stage Safety Gate",
+      "items": [
+        "Dry-run execution plan computes exact before/after diffs",
+        "Four-eyes approval required for power, resize, and snapshot tasks",
+        "TOCTOU revision check halts if vCenter state changed externally"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Zero-Disk PAM Integration",
+      "items": [
+        "VCF infrastructure passwords never stored on disk or in DB",
+        "Retrieved dynamically from CyberArk PAM into memory only",
+        "Direct egress to vCenter/NSX with pinned destination IPs"
+      ]
+    }
+  ]
+}

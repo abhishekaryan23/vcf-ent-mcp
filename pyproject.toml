@@ -1,0 +1,59 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vcf-enterprise-mcp"
+version = "1.0.0-beta.1"
+description = "Unofficial, under-testing MCP server for VMware Cloud Foundation 9.x with per-user tool filtering, signed approvals and audit (not a Broadcom/VMware product)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Abhishek Rai", email = "abhishekaryan2@gmail.com" },
+]
+maintainers = [
+    { name = "Abhishek Rai", email = "abhishekaryan2@gmail.com" },
+]
+keywords = ["mcp", "model-context-protocol", "vmware", "vcf", "cloud-foundation", "llm", "unofficial"]
+classifiers = [
+    "License :: OSI Approved :: MIT License",
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Information Technology",
+    "Topic :: System :: Systems Administration",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+dependencies = [
+    "pyyaml>=6.0",
+    "httpx>=0.25.0",
+    "PyJWT>=2.8.0",
+    "cryptography>=42.0.0",
+    "psycopg[binary]>=3.2.0",
+    "psycopg-pool>=3.2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/abhishekaryan23/vcf-ent-mcp"
+Repository = "https://github.com/abhishekaryan23/vcf-ent-mcp"
+Issues = "https://github.com/abhishekaryan23/vcf-ent-mcp/issues"
+Documentation = "https://github.com/abhishekaryan23/vcf-ent-mcp/tree/main/docs"
+"Security policy" = "https://github.com/abhishekaryan23/vcf-ent-mcp/blob/main/SECURITY.md"
+
+[tool.setuptools.package-data]
+"*" = ["*.yaml", "*.yml"]
+
+[project.scripts]
+vcf-enterprise-mcp = "vcf_enterprise_mcp.core.server:main"
+vcf-mcp = "vcf_enterprise_mcp.cli:main"
+
+[project.optional-dependencies]
+test = ["pytest>=8", "fastapi>=0.115", "uvicorn>=0.30", "mcp>=1.10", "anyio>=4"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "."]

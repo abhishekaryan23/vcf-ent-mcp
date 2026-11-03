@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "Two-Stage Authorization & TOCTOU-Safe Execution",
+    "subtitle": "Principal discovery isolation, resource revision pinning, and distributed lease execution",
+    "output": "vcf_enterprise_mcp/docs/interactive_architecture/two_stage_execution.html",
+    "viewBox": [1040, 720],
+    "column_fit": "spread",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "discovery-and-plan",
+        "label": "Discovery & Planning",
+        "focus": ["llm", "pep", "router", "plan", "vcf"],
+        "note": "Private scoped discovery and revision-pinned dry run generation."
+      },
+      {
+        "id": "approval-gate",
+        "label": "Four-Eyes Approval",
+        "focus": ["approver", "plan"],
+        "note": "SecOps human approval issues a single-use cryptographic nonce."
+      },
+      {
+        "id": "execution-and-audit",
+        "label": "Execution & Durability",
+        "focus": ["llm", "router", "lease", "vcf", "audit"],
+        "note": "Nonce consumption, fencing token dispatch, postcondition verification, and SHA-256 audit."
+      }
+    ]
+  },
+  "participants": [
+    { "id": "llm", "type": "external", "label": "AI Agent", "sublabel": "untrusted runtime" },
+    { "id": "pep", "type": "security", "label": "PEP / Gateway", "sublabel": "RFC 8707 edge" },
+    { "id": "router", "type": "backend", "label": "Tool Router", "sublabel": "5-stage filter" },
+    { "id": "plan", "type": "backend", "label": "Plan Manager", "sublabel": "TOCTOU revision" },
+    { "id": "approver", "type": "security", "label": "Approver", "sublabel": "four-eyes" },
+    { "id": "lease", "type": "backend", "label": "Lease Manager", "sublabel": "fencing tokens" },
+    { "id": "vcf", "type": "cloud", "label": "VCF Platform", "sublabel": "vCenter & SDDC" },
+    { "id": "audit", "type": "database", "label": "Audit Store", "sublabel": "SHA-256 chain" }
+  ],
+  "segments": [
+    { "from": 150, "to": 215, "label": "1. Private Discovery" },
+    { "from": 225, "to": 355, "label": "2. Dry-Run Planning" },
+    { "from": 365, "to": 425, "label": "3. Four-Eyes Approval" },
+    { "from": 435, "to": 600, "label": "4. Fenced Execution" }
+  ],
+  "messages": [
+    { "id": "m1", "from": "llm", "to": "pep", "y": 165, "label": "tools/list (bearer JWT)", "variant": "emphasis" },
+    { "id": "m2", "from": "pep", "to": "llm", "y": 200, "label": "scoped tools (private cache)", "variant": "return" },
+    { "id": "m3", "from": "llm", "to": "router", "y": 235, "label": "tools/call (resize, dry_run=true)", "variant": "emphasis" },
+    { "id": "m4", "from": "router", "to": "plan", "y": 270, "label": "create_execution_plan()", "variant": "default" },
+    { "id": "m5", "from": "plan", "to": "vcf", "y": 305, "label": "get_resource_revision (rev=4)", "variant": "default" },
+    { "id": "m6", "from": "plan", "to": "llm", "y": 340, "label": "ExecutionPlan (rev=4, unexecutable)", "variant": "return" },
+    { "id": "m7", "from": "approver", "to": "plan", "y": 375, "label": "approve_plan (plan_id)", "variant": "security" },
+    { "id": "m8", "from": "plan", "to": "approver", "y": 410, "label": "SignedAuth (nonce, 300s TTL)", "variant": "return" },
+    { "id": "m9", "from": "llm", "to": "router", "y": 445, "label": "tools/call (resize, nonce)", "variant": "emphasis" },
+    { "id": "m10", "from": "router", "to": "lease", "y": 480, "label": "acquire_lease (fencing=189)", "variant": "default" },
+    { "id": "m11", "from": "router", "to": "vcf", "y": 515, "label": "execute & verify (mem=32GB)", "variant": "emphasis" },
+    { "id": "m12", "from": "router", "to": "audit", "y": 550, "label": "release lease & record SHA-256", "variant": "dashed" },
+    { "id": "m13", "from": "router", "to": "llm", "y": 585, "label": "sanitized execution result", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "pep", "from": 160, "to": 205, "type": "security" },
+    { "participant": "router", "from": 230, "to": 345, "type": "backend" },
+    { "participant": "plan", "from": 265, "to": 345, "type": "backend" },
+    { "participant": "plan", "from": 370, "to": 415, "type": "backend" },
+    { "participant": "router", "from": 440, "to": 590, "type": "backend" },
+    { "participant": "lease", "from": 475, "to": 555, "type": "backend" },
+    { "participant": "vcf", "from": 510, "to": 535, "type": "cloud" },
+    { "participant": "audit", "from": 545, "to": 575, "type": "database" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "TOCTOU Revision Guard",
+      "items": [
+        "Plan generation pins the target infrastructure revision (rev=4)",
+        "Execution verifies revision has not drifted prior to mutation",
+        "Prevents race conditions against out-of-band operator changes"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Four-Eyes Authorization",
+      "items": [
+        "High-risk tools cannot be executed directly by the LLM",
+        "Independent administrator signs approval through enterprise extension",
+        "Cryptographic nonce is single-use and expires after 300 seconds"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Distributed Fencing",
+      "items": [
+        "Lease acquisition increments monotonic fencing token",
+        "Stale requests rejected by Downstream Adapter with -32012",
+        "Postcondition verification confirms memory change before release"
+      ]
+    }
+  ]
+}

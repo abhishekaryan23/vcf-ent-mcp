@@ -1,0 +1,126 @@
+profile_name: "vcf_9_1_1"
+vcf_version: "9.1.1"
+component_versions:
+  sddc_manager: "9.1.1"
+  vcenter: "9.1.1"
+  nsx: "4.2.1"
+  vcf_operations: "9.1.1"
+operations:
+  # SDDC Manager Mediated Operations
+  - name: "get_domains"
+    component: "sddc_manager"
+    transport_route: "mediated"
+    required_capabilities: ["domain.lifecycle"]
+    description: "Enumerate workload domains via SDDC Manager API"
+    is_destructive: false
+    test_params: {}
+
+  - name: "get_system_health"
+    component: "sddc_manager"
+    transport_route: "mediated"
+    required_capabilities: ["system.health"]
+    description: "Query consolidated cross-stack health from SDDC Manager"
+    is_destructive: false
+    test_params:
+      datacenter_id: "dc1"
+
+  - name: "upgrade_domain"
+    component: "sddc_manager"
+    transport_route: "mediated"
+    required_capabilities: ["domain.lifecycle"]
+    description: "Trigger domain lifecycle upgrade workflow via SDDC Manager"
+    is_destructive: true
+    test_params:
+      domain_id: "mgmt-domain"
+      target_version: "9.1.1"
+      bundle_id: "bundle-cert-0001"
+
+  # vCenter Direct Operations (SDDC Manager Independence)
+  - name: "get_vms"
+    component: "vcenter"
+    transport_route: "direct"
+    required_capabilities: ["vm.lifecycle"]
+    description: "Query virtual machine inventory directly from vCenter REST API"
+    is_destructive: false
+    test_params:
+      cluster_id: "cluster-twin-a"
+
+  - name: "get_vm"
+    component: "vcenter"
+    transport_route: "direct"
+    required_capabilities: ["vm.lifecycle"]
+    description: "Inspect specific virtual machine directly from vCenter REST API"
+    is_destructive: false
+    test_params:
+      vm_id: "vm-twin-101"
+
+  - name: "power_vm"
+    component: "vcenter"
+    transport_route: "direct"
+    required_capabilities: ["vm.lifecycle"]
+    description: "Execute VM power state change directly on vCenter"
+    is_destructive: false
+    test_params:
+      vm_id: "vm-twin-101"
+      action: "start"
+
+  - name: "resize_vm"
+    component: "vcenter"
+    transport_route: "direct"
+    required_capabilities: ["vm.lifecycle"]
+    description: "Hot-add or alter CPU/memory hardware directly on vCenter"
+    is_destructive: false
+    test_params:
+      vm_id: "vm-twin-101"
+      cpu_cores: 8
+      memory_gb: 32
+
+  - name: "create_snapshot"
+    component: "vcenter"
+    transport_route: "direct"
+    required_capabilities: ["vm.lifecycle"]
+    description: "Create snapshot directly on vCenter"
+    is_destructive: false
+    test_params:
+      vm_id: "vm-twin-101"
+      snapshot_name: "cert-snap-01"
+
+  - name: "get_hosts"
+    component: "vcenter"
+    transport_route: "direct"
+    required_capabilities: ["compute.inventory"]
+    description: "Query ESXi host inventory directly from vCenter"
+    is_destructive: false
+    test_params:
+      cluster_id: "cluster-twin-a"
+
+  - name: "get_clusters"
+    component: "vcenter"
+    transport_route: "direct"
+    required_capabilities: ["compute.inventory"]
+    description: "Query compute cluster inventory directly from vCenter"
+    is_destructive: false
+    test_params: {}
+
+  # NSX Direct Operations (SDDC Manager Independence)
+  - name: "create_segment"
+    component: "nsx"
+    transport_route: "direct"
+    required_capabilities: ["network.segments"]
+    description: "Create overlay logical segment directly via NSX Policy API"
+    is_destructive: false
+    test_params:
+      segment_name: "seg-cert-01"
+      gateway_id: "t1-gw-01"
+      cidr: "172.28.1.1/24"
+
+  # VCF Operations Direct Operations
+  - name: "query_telemetry"
+    component: "vcf_operations"
+    transport_route: "direct"
+    required_capabilities: ["telemetry.promql"]
+    description: "Query operational performance metrics directly from VCF Operations API"
+    is_destructive: false
+    test_params:
+      entity_id: "cluster-twin-a"
+      metrics: ["cpu_utilization_pct"]

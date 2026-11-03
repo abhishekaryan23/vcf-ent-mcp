@@ -1,0 +1,102 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "VCF Infrastructure Operations Flow",
+    "subtitle": "Step-by-step lifecycle of an AI or vRO mutating operation touching vCenter with zero-trust safety gates",
+    "output": "vcf_enterprise_mcp/docs/interactive_architecture/vcf_ops_flow.html",
+    "viewBox": [1040, 800],
+    "column_fit": "spread",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "dry-run-phase",
+        "label": "1. Dry-Run & Change Impact",
+        "focus": ["admin", "ai", "mcp", "vcenter"],
+        "note": "AI requests dry-run. MCP queries vCenter for current hardware state and generates non-executable plan with diff."
+      },
+      {
+        "id": "approval-phase",
+        "label": "2. Four-Eyes Change Approval",
+        "focus": ["admin", "mcp"],
+        "note": "Senior VI admin or vRO approves plan against change ticket CHG-7701, minting single-use cryptographic nonce."
+      },
+      {
+        "id": "execution-phase",
+        "label": "3. PAM Fetch & Fenced Execution",
+        "focus": ["ai", "mcp", "cyberark", "vcenter", "audit"],
+        "note": "MCP retrieves ephemeral vCenter credential from CyberArk into RAM, executes task, verifies hardware, and logs audit."
+      }
+    ]
+  },
+  "participants": [
+    { "id": "admin", "type": "external", "label": "VI Admin / vRO", "sublabel": "change authority" },
+    { "id": "ai", "type": "external", "label": "AI Assistant", "sublabel": "operator session" },
+    { "id": "mcp", "type": "backend", "label": "VCF MCP Engine", "sublabel": "safety control plane" },
+    { "id": "cyberark", "type": "security", "label": "CyberArk PAM", "sublabel": "CCP / AAM vault" },
+    { "id": "vcenter", "type": "cloud", "label": "vCenter Server", "sublabel": "Workload WLD :443" },
+    { "id": "audit", "type": "database", "label": "Audit Store", "sublabel": "tamper-evident log" }
+  ],
+  "segments": [
+    { "from": 150, "to": 285, "label": "Phase 1: Dry-Run & Impact Analysis" },
+    { "from": 295, "to": 355, "label": "Phase 2: Change Ticket & Four-Eyes Approval" },
+    { "from": 365, "to": 530, "label": "Phase 3: Ephemeral PAM & Fenced Dispatch" },
+    { "from": 540, "to": 670, "label": "Phase 4: Postcondition Verify & Audit" }
+  ],
+  "messages": [
+    { "id": "m1", "from": "ai", "to": "mcp", "y": 165, "label": "vcf_resize_vm(vm='app-01', mem=32GB, dry_run=true)", "variant": "emphasis" },
+    { "id": "m2", "from": "mcp", "to": "vcenter", "y": 200, "label": "GET /rest/vcenter/vm/vm-101 (read current revision)", "variant": "default" },
+    { "id": "m3", "from": "vcenter", "to": "mcp", "y": 235, "label": "vm-101 specs (RAM=16GB, rev=104)", "variant": "return" },
+    { "id": "m4", "from": "mcp", "to": "ai", "y": 270, "label": "DryRunPlan: plan_id='plan-982', diff=+16GB", "variant": "return" },
+    { "id": "m5", "from": "admin", "to": "mcp", "y": 305, "label": "approve_plan('plan-982', ticket='CHG-7701')", "variant": "security" },
+    { "id": "m6", "from": "mcp", "to": "admin", "y": 340, "label": "SignedExecutionAuth: nonce='n-819', TTL=300s", "variant": "return" },
+    { "id": "m7", "from": "ai", "to": "mcp", "y": 375, "label": "vcf_resize_vm(plan_id='plan-982', nonce='n-819')", "variant": "emphasis" },
+    { "id": "m8", "from": "mcp", "to": "cyberark", "y": 410, "label": "GET /AIMWebService/api/Accounts (vcenter account)", "variant": "security" },
+    { "id": "m9", "from": "cyberark", "to": "mcp", "y": 445, "label": "Ephemeral Password (RAM only)", "variant": "return" },
+    { "id": "m10", "from": "mcp", "to": "vcenter", "y": 480, "label": "POST /rest/vcenter/vm/vm-101/hardware/memory (set 32GB)", "variant": "emphasis" },
+    { "id": "m11", "from": "vcenter", "to": "mcp", "y": 515, "label": "vCenter Task ID task-8402 (Status: Success)", "variant": "return" },
+    { "id": "m12", "from": "mcp", "to": "vcenter", "y": 550, "label": "GET /rest/vcenter/vm/vm-101 (Verify actual hardware)", "variant": "default" },
+    { "id": "m13", "from": "vcenter", "to": "mcp", "y": 585, "label": "Actual RAM = 32GB Confirmed (rev=105)", "variant": "return" },
+    { "id": "m14", "from": "mcp", "to": "audit", "y": 620, "label": "Commit SHA-256 audit record; scrub RAM credentials", "variant": "dashed" },
+    { "id": "m15", "from": "mcp", "to": "ai", "y": 655, "label": "Status: SUCCESS (VM app-01 resized to 32GB)", "variant": "return" }
+  ],
+  "activations": [
+    { "participant": "mcp", "from": 160, "to": 275, "type": "backend" },
+    { "participant": "vcenter", "from": 195, "to": 240, "type": "cloud" },
+    { "participant": "mcp", "from": 300, "to": 345, "type": "security" },
+    { "participant": "mcp", "from": 370, "to": 660, "type": "backend" },
+    { "participant": "cyberark", "from": 405, "to": 450, "type": "security" },
+    { "participant": "vcenter", "from": 475, "to": 590, "type": "cloud" },
+    { "participant": "audit", "from": 615, "to": 630, "type": "database" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "1. Dry-Run & Revision Check",
+      "items": [
+        "Every mutation begins as a read-only dry run",
+        "Records authoritative vCenter revision (rev-104)",
+        "Computes exact hardware diff before any API calls"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "2. Human Approval Gate",
+      "items": [
+        "Requires independent VI admin or vRO workflow approval",
+        "Ties operation to ServiceNow change ticket (CHG-7701)",
+        "Issues single-use cryptographic token with 300s TTL"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "3. Zero-Disk PAM & Read-Back",
+      "items": [
+        "vCenter credentials pulled from CyberArk PAM into memory",
+        "Dispatches reconfigure task and waits for task-8402",
+        "Queries VM directly to verify 32GB before returning"
+      ]
+    }
+  ]
+}

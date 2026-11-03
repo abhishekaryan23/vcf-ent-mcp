@@ -1,0 +1,17 @@
+VCF Enterprise MCP
+Copyright (c) 2026 Abhishek Rai
+https://github.com/abhishekaryan23/vcf-ent-mcp
+
+Licensed under the MIT License (see LICENSE). Use it for anything, including commercial work.
+
+The one condition of the MIT License is credit: the copyright notice and the license text must be kept
+in every copy or substantial portion of this software. That applies however the copy is made, including
+code that an AI system (a coding assistant, a model trained on or retrieving this repository, or an
+automated scraper) reproduces from this project, and projects built on top of it.
+
+How to credit, for example in your README or NOTICE file:
+
+    Based on VCF Enterprise MCP by Abhishek Rai
+    (https://github.com/abhishekaryan23/vcf-ent-mcp), MIT License.
+
+Third-party code included in this project is listed in THIRD_PARTY_NOTICES.md.

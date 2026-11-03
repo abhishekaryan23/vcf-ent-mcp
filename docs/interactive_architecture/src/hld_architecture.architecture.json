@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Enterprise VCF MCP Control Plane - High Level Design",
+    "subtitle": "Trust boundaries, zero-trust credential isolation, and resilient control plane architecture",
+    "output": "vcf_enterprise_mcp/docs/interactive_architecture/hld_architecture.html",
+    "visual_preset": "blueprint",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "trust-boundary",
+        "label": "Identity & Trust Boundary",
+        "focus": ["llm", "client", "idp", "auth_gw", "pep_pdp"],
+        "note": "AI Runtime is strictly outside the infrastructure boundary. All tokens are validated against RFC 8707."
+      },
+      {
+        "id": "policy-and-routing",
+        "label": "Policy & Tool Routing",
+        "focus": ["auth_gw", "pep_pdp", "router", "plan_lease"],
+        "note": "Identity-aware 5-stage routing with TOCTOU revision pinning and four-eyes authorization."
+      },
+      {
+        "id": "execution-and-durability",
+        "label": "Execution & State Durability",
+        "focus": ["plan_lease", "workflow", "dstore", "platform_broker", "vcf_infra"],
+        "note": "Distributed leases with fencing tokens, crash-resumable workflows, and SHA-256 hash-chain audit."
+      }
+    ]
+  },
+  "components": [
+    { "id": "llm", "type": "external", "label": "Enterprise AI", "sublabel": "Claude / GPT / Gemma", "pos": [40, 110], "size": [136, 60], "tag": "untrusted" },
+    { "id": "client", "type": "external", "label": "Enterprise Operator", "sublabel": "SSO / OIDC session", "pos": [40, 260], "size": [136, 60], "tag": "operator" },
+    { "id": "idp", "type": "security", "label": "Corporate IdP", "sublabel": "Entra ID / Okta", "pos": [40, 410], "size": [136, 60], "tag": "RFC 8707" },
+    { "id": "auth_gw", "type": "security", "label": "Auth Gateway", "sublabel": "JWT & Prompt Sanitizer", "pos": [260, 185], "size": [140, 62], "tag": "edge gate" },
+    { "id": "pep_pdp", "type": "security", "label": "Policy Engine", "sublabel": "PEP / PDP & Epochs", "pos": [260, 340], "size": [140, 62], "tag": "governance" },
+    { "id": "router", "type": "backend", "label": "Tool Router", "sublabel": "5-stage filter & L1/L2/L3", "pos": [500, 185], "size": [140, 62], "tag": "discovery" },
+    { "id": "workflow", "type": "backend", "label": "Workflow Engine", "sublabel": "Crash-resumable L3", "pos": [500, 340], "size": [140, 62], "tag": "resilient" },
+    { "id": "plan_lease", "type": "backend", "label": "Plan & Lease Mgr", "sublabel": "TOCTOU & fencing tokens", "pos": [740, 185], "size": [140, 62], "tag": "concurrency" },
+    { "id": "dstore", "type": "database", "label": "DurableStore", "sublabel": "SQLite WAL / Postgres HA", "pos": [740, 340], "size": [140, 62], "tag": "SHA-256 audit" },
+    { "id": "platform_broker", "type": "cloud", "label": "Platform & Broker", "sublabel": "SSRF guard & credentials", "pos": [980, 185], "size": [140, 62], "tag": "zero-trust" },
+    { "id": "vcf_infra", "type": "cloud", "label": "VCF 9.x Fleet", "sublabel": "SDDC, vCenter, NSX, ESA", "pos": [980, 340], "size": [140, 62], "tag": "private cloud" }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Datacenter Control Plane Enclave", "wraps": ["auth_gw", "pep_pdp", "router", "workflow", "plan_lease", "dstore", "platform_broker"] },
+    { "kind": "security-group", "label": "Policy & Execution Engine", "wraps": ["pep_pdp", "router", "workflow", "plan_lease"] }
+  ],
+  "connections": [
+    { "id": "client-idp", "from": "client", "to": "idp", "variant": "security", "route": "straight" },
+    { "id": "idp-pep", "from": "idp", "to": "pep_pdp", "variant": "security", "route": "orthogonal-h" },
+    { "id": "llm-gateway", "from": "llm", "to": "auth_gw", "variant": "emphasis", "route": "orthogonal-h" },
+    { "id": "gateway-pep", "from": "auth_gw", "to": "pep_pdp", "variant": "emphasis", "route": "straight" },
+    { "id": "pep-router", "from": "pep_pdp", "to": "router", "variant": "emphasis", "route": "orthogonal-h" },
+    { "id": "router-plan", "from": "router", "to": "plan_lease", "variant": "emphasis", "route": "straight" },
+    { "id": "plan-workflow", "from": "plan_lease", "to": "workflow", "variant": "emphasis", "route": "orthogonal-h" },
+    { "id": "workflow-dstore", "from": "workflow", "to": "dstore", "variant": "dashed", "route": "straight" },
+    { "id": "plan-platform", "from": "plan_lease", "to": "platform_broker", "variant": "emphasis", "route": "straight" },
+    { "id": "platform-vcf", "from": "platform_broker", "to": "vcf_infra", "variant": "security", "route": "straight" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Strict Trust Boundary",
+      "items": [
+        "LLM runtime sits strictly outside infrastructure boundary",
+        "Zero access to root passwords, session cookies, or raw APIs",
+        "Untrusted strings sanitized to defuse prompt injection"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "TOCTOU & Mutual Exclusion",
+      "items": [
+        "Planning pins resource revisions (e.g. rev=4)",
+        "Four-eyes approval signs cryptographic nonce (300s TTL)",
+        "Distributed leases enforce monotonic fencing tokens"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "State Durability & Audit",
+      "items": [
+        "Appliance MODE A (SQLite WAL) vs Enterprise MODE B (PostgreSQL HA)",
+        "Tamper-evident SHA-256 hash chain with external WORM anchor",
+        "4-phase step reconciliation protects asynchronous mutations"
+      ]
+    }
+  ]
+}

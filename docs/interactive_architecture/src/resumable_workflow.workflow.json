@@ -1,0 +1,103 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "Deterministic Resumable L3 Workflow & Saga Boundary",
+    "subtitle": "Workload domain upgrade orchestration, four-eyes gate, and irreversible execution boundary",
+    "output": "vcf_enterprise_mcp/docs/interactive_architecture/resumable_workflow.html",
+    "visual_preset": "signal-flow",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "happy-path",
+        "label": "Full Upgrade Flow",
+        "focus": ["user", "precheck", "plan_gen", "four_eyes", "stage_bundle", "evac_drs", "flash_esxi", "post_verify", "final_report"],
+        "note": "Complete deterministic workflow from operator intent to verified upgraded domain."
+      },
+      {
+        "id": "safety-and-approval",
+        "label": "Safety & Approval Gate",
+        "focus": ["precheck", "plan_gen", "four_eyes", "stage_bundle"],
+        "note": "Pre-flight validation screens vendor issues before halting at the human gate."
+      },
+      {
+        "id": "saga-boundary",
+        "label": "Irreversible Boundary",
+        "focus": ["lease_acq", "evac_drs", "flash_esxi", "post_verify"],
+        "note": "Compensable preparation ends where irreversible hypervisor firmware flashing begins."
+      }
+    ]
+  },
+  "lanes": [
+    { "id": "operator", "label": "Operator & AI Runtime" },
+    { "id": "governance", "label": "Policy & Approval Gate", "variant": "exception" },
+    { "id": "engine", "label": "Workflow Engine & Outbox" },
+    { "id": "infrastructure", "label": "VCF Infrastructure & Leases" }
+  ],
+  "phases": [
+    { "id": "intake", "label": "Intake & Pre-Checks", "fromCol": 0, "toCol": 1 },
+    { "id": "staging", "label": "Approval & Staging", "fromCol": 2, "toCol": 3, "variant": "emphasis" },
+    { "id": "execution", "label": "Flash & Verification", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "groups": [
+    { "id": "precheck_grp", "label": "Pre-Flight Validation", "lane": "engine", "fromCol": 0, "toCol": 1, "variant": "emphasis" },
+    { "id": "gov_grp", "label": "Human Authorization", "lane": "governance", "fromCol": 2, "toCol": 3, "variant": "security" },
+    { "id": "infra_grp", "label": "Irreversible Saga Boundary", "lane": "infrastructure", "fromCol": 4, "toCol": 5, "variant": "dashed" }
+  ],
+  "mainPath": ["user", "precheck", "plan_gen", "four_eyes", "stage_bundle", "lease_acq", "evac_drs", "flash_esxi", "post_verify", "final_report"],
+  "nodes": [
+    { "id": "user", "lane": "operator", "col": 0, "type": "external", "label": "Operator Intent", "sublabel": "vcf_upgrade_domain", "width": 132 },
+    { "id": "final_report", "lane": "operator", "col": 5, "type": "frontend", "label": "Final Receipt", "sublabel": "audit anchored", "width": 132 },
+    { "id": "four_eyes", "lane": "governance", "col": 2, "type": "security", "label": "Approval Gate", "sublabel": "four-eyes sign-off", "tag": "blocks mutation", "width": 132 },
+    { "id": "store_outbox", "lane": "engine", "col": 0, "type": "database", "label": "Intent Outbox", "sublabel": "DurableStore WAL", "width": 132 },
+    { "id": "precheck", "lane": "engine", "col": 1, "type": "backend", "label": "Vendor Precheck", "sublabel": "screen known issues", "tag": "KB-98124 check", "width": 132 },
+    { "id": "plan_gen", "lane": "engine", "col": 2, "type": "backend", "label": "Impact Analysis", "sublabel": "pin cluster rev=4", "width": 132 },
+    { "id": "stage_bundle", "lane": "engine", "col": 3, "type": "backend", "label": "Bundle Download", "sublabel": "compensable step", "width": 132 },
+    { "id": "post_verify", "lane": "engine", "col": 5, "type": "backend", "label": "Verify State", "sublabel": "postcondition check", "width": 132 },
+    { "id": "lease_acq", "lane": "infrastructure", "col": 3, "type": "backend", "label": "Resource Lease", "sublabel": "fencing token=189", "width": 132 },
+    { "id": "evac_drs", "lane": "infrastructure", "col": 4, "type": "cloud", "label": "DRS Evacuation", "sublabel": "vMotion active VMs", "tag": "pre-boundary", "width": 132 },
+    { "id": "flash_esxi", "lane": "infrastructure", "col": 5, "type": "cloud", "label": "ESXi Flash / LCM", "sublabel": "irreversible saga", "tag": "NO ROLLBACK", "width": 132 }
+  ],
+  "edges": [
+    { "id": "e1", "from": "user", "to": "precheck", "variant": "default" },
+    { "id": "e2", "from": "precheck", "to": "store_outbox", "label": "outbox intent", "variant": "dashed" },
+    { "id": "e3", "from": "precheck", "to": "plan_gen", "label": "checks pass", "variant": "emphasis" },
+    { "id": "e4", "from": "plan_gen", "to": "four_eyes", "label": "gate", "variant": "security" },
+    { "id": "e5", "from": "four_eyes", "to": "stage_bundle", "label": "signed nonce", "variant": "emphasis" },
+    { "id": "e6", "from": "stage_bundle", "to": "lease_acq", "label": "acquire", "variant": "default" },
+    { "id": "e7", "from": "lease_acq", "to": "evac_drs", "label": "fenced lock", "variant": "emphasis" },
+    { "id": "e8", "from": "evac_drs", "to": "flash_esxi", "label": "flash hosts", "variant": "emphasis" },
+    { "id": "e9", "from": "flash_esxi", "to": "post_verify", "label": "rebooted", "variant": "emphasis" },
+    { "id": "e10", "from": "post_verify", "to": "final_report", "label": "verified", "variant": "emphasis", "role": "return" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Deterministic Resumption",
+      "items": [
+        "State transitions persisted to DurableStore outbox at every phase",
+        "If MCP control plane node crashes, successor automatically resumes from last verified step",
+        "Idempotency keys prevent double execution of completed steps"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Irreversible Saga Boundary",
+      "items": [
+        "Steps prior to flash (bundle download, DRS evacuation) are fully compensable",
+        "ESXi hypervisor flash is marked IRREVERSIBLE — automatic rollback disabled",
+        "Failures during firmware flash trigger automated forward remediation"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "Vendor Issue Screening",
+      "items": [
+        "Pre-check queries KnownIssueRegistry for vendor hardware/driver alerts",
+        "Hard-negative suppression stops upgrade before maintenance window if conflict exists",
+        "Generates detailed remediation advice for data center administrators"
+      ]
+    }
+  ]
+}

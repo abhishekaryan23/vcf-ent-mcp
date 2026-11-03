@@ -1,0 +1,535 @@
+environment:
+  name: Global-Enterprise-MultiTenant-VCF-Grid
+  vcf_version: 9.1.0.0
+  build_number: '24892011'
+  organization: Global Enterprise Cloud Infrastructure
+  simulated_latency_ms: 10
+  enforce_strict_auth: true
+sddc_manager:
+  id: sddc-mgr-prod
+  fqdn: sddc-manager.corp.global
+  ip_address: 10.10.10.2
+  credentials:
+    admin_user: administrator@vsphere.local
+    admin_pass: VMware1!MockPassword
+    role: VCF_SUPER_ADMIN
+licensing:
+- id: lic-vcf-core
+  product_name: VMware Cloud Foundation 9 Core
+  license_key: VCF91-IMPORTED-KEY-XXXXX
+  capacity: 512
+  units: CORES
+  used: 256
+network_pools:
+- id: netpool-corp-01
+  name: Global-Infra-Network-Pool
+  subnets:
+  - network_type: VSAN
+    cidr: 10.10.100.0/24
+    gateway: 10.10.100.1
+    vlan_id: 100
+    ip_pool:
+      start: 10.10.100.10
+      end: 10.10.100.200
+  - network_type: GENEVE
+    cidr: 10.10.101.0/24
+    gateway: 10.10.101.1
+    vlan_id: 101
+    ip_pool:
+      start: 10.10.101.10
+      end: 10.10.101.200
+tenant_organizations:
+- id: org-fintech
+  name: Fintech-Banking-Division
+  description: PCI-DSS Compliant Banking and Transaction Processing
+  quota_cpu: 512
+  quota_memory_gb: 2048
+  quota_storage_tb: 100
+- id: org-healthcare
+  name: Healthcare-LifeSciences-Division
+  description: HIPAA Compliant Electronic Health Records and Patient Services
+  quota_cpu: 256
+  quota_memory_gb: 1024
+  quota_storage_tb: 60
+- id: org-ai
+  name: Private-AI-Research-Division
+  description: Enterprise LLM Inference, RAG pipelines, and GPU Workloads
+  quota_cpu: 512
+  quota_memory_gb: 4096
+  quota_storage_tb: 200
+management_domain:
+  id: domain-mgmt-01
+  name: mgmt-domain-global
+  domain_type: MANAGEMENT
+  tenant_organization: null
+  vcenter:
+    id: vc-mgmt-01
+    fqdn: vc-mgmt.corp.global
+    ip_address: 10.10.10.10
+  nsx_manager:
+    id: nsx-mgmt-01
+    vip_fqdn: nsx-mgmt.corp.global
+    ip_address: 10.10.10.11
+  srm_instance:
+    id: srm-mgmt-domain-global
+    fqdn: srm-mgmt-domain-global.corp.local
+    site_name: Site-mgmt-domain-global
+  clusters:
+  - &id001
+    id: cluster-mgmt-01
+    name: mgmt-cl01
+    primary_datastore_name: vsan-mgmt-ds01
+    vsphere_supervisor:
+      cluster_id: domain-c8
+      config_status: RUNNING
+      kubernetes_status: READY
+      api_endpoint: https://192.168.20.250:6443
+      kubernetes_version: v1.30.2+vmware.1
+      master_nodes:
+      - 192.168.20.251
+      - 192.168.20.252
+      vm_service_classes:
+      - name: best-effort-small
+        cpu: 2
+        memory_mb: 4096
+      - name: guaranteed-large
+        cpu: 8
+        memory_mb: 32768
+      - name: ai-gpu-quad
+        cpu: 32
+        memory_mb: 131072
+        vgpu_profile: grid_a100-40c
+      namespaces:
+      - name: tkg-system
+        description: Tanzu Core Infrastructure
+        storage_limit_gb: 1000
+      - name: prod-apps
+        description: Production Workloads
+        storage_limit_gb: 5000
+      - name: ai-models
+        description: Private AI Inference Services
+        storage_limit_gb: 10000
+    hosts:
+    - id: esx-mgmt-01
+      fqdn: esx-mgmt-01.corp.global
+      ip: 10.10.10.101
+      cores: 64
+      memory_gb: 512
+      storage_tb: 14
+      status: ASSIGNED
+    - id: esx-mgmt-02
+      fqdn: esx-mgmt-02.corp.global
+      ip: 10.10.10.102
+      cores: 64
+      memory_gb: 512
+      storage_tb: 14
+      status: ASSIGNED
+    - id: esx-mgmt-03
+      fqdn: esx-mgmt-03.corp.global
+      ip: 10.10.10.103
+      cores: 64
+      memory_gb: 512
+      storage_tb: 14
+      status: ASSIGNED
+    - id: esx-mgmt-04
+      fqdn: esx-mgmt-04.corp.global
+      ip: 10.10.10.104
+      cores: 64
+      memory_gb: 512
+      storage_tb: 14
+      status: ASSIGNED
+  cluster: *id001
+workload_domains:
+- id: domain-wld01-fintech
+  name: wld-fintech-prod
+  domain_type: VI
+  tenant_organization: Fintech-Banking-Division
+  vcenter:
+    id: vc-fintech-01
+    fqdn: vc-fintech.corp.global
+    ip_address: 10.20.10.10
+  nsx_manager:
+    id: nsx-fintech-01
+    vip_fqdn: nsx-fintech.corp.global
+    ip_address: 10.20.10.11
+  srm_instance:
+    id: srm-wld-fintech-prod
+    fqdn: srm-wld-fintech-prod.corp.local
+    site_name: Site-wld-fintech-prod
+  clusters:
+  - id: cluster-fintech-prod-01
+    name: fintech-prod-cl01
+    primary_datastore_name: vsan-fintech-prod-ds01
+    vsphere_supervisor:
+      cluster_id: domain-c8-fintech
+      config_status: RUNNING
+      kubernetes_status: READY
+      api_endpoint: https://10.20.10.250:6443
+      kubernetes_version: v1.30.2+vmware.1
+      master_nodes:
+      - 10.20.10.251
+      - 10.20.10.252
+      vm_service_classes:
+      - name: best-effort-small
+        cpu: 2
+        memory_mb: 4096
+      - name: guaranteed-large
+        cpu: 8
+        memory_mb: 32768
+      namespaces:
+      - name: fintech-payments
+        description: PCI DSS Online Payment Processing
+        storage_limit_gb: 10000
+      - name: fintech-ledger
+        description: High Throughput Core Ledger Service
+        storage_limit_gb: 20000
+    hosts:
+    - id: esx-fintech-01
+      fqdn: esx-fintech-01.corp.global
+      ip: 10.20.10.101
+      cores: 128
+      memory_gb: 1024
+      storage_tb: 28
+      status: ASSIGNED
+    - id: esx-fintech-02
+      fqdn: esx-fintech-02.corp.global
+      ip: 10.20.10.102
+      cores: 128
+      memory_gb: 1024
+      storage_tb: 28
+      status: ASSIGNED
+    - id: esx-fintech-03
+      fqdn: esx-fintech-03.corp.global
+      ip: 10.20.10.103
+      cores: 128
+      memory_gb: 1024
+      storage_tb: 28
+      status: ASSIGNED
+    - id: esx-fintech-04
+      fqdn: esx-fintech-04.corp.global
+      ip: 10.20.10.104
+      cores: 128
+      memory_gb: 1024
+      storage_tb: 28
+      status: ASSIGNED
+  - id: cluster-fintech-batch-02
+    name: fintech-batch-cl02
+    primary_datastore_name: vsan-fintech-batch-ds02
+    vsphere_supervisor:
+      cluster_id: domain-c8
+      config_status: RUNNING
+      kubernetes_status: READY
+      api_endpoint: https://192.168.20.250:6443
+      kubernetes_version: v1.30.2+vmware.1
+      master_nodes:
+      - 192.168.20.251
+      - 192.168.20.252
+      vm_service_classes:
+      - name: best-effort-small
+        cpu: 2
+        memory_mb: 4096
+      - name: guaranteed-large
+        cpu: 8
+        memory_mb: 32768
+      - name: ai-gpu-quad
+        cpu: 32
+        memory_mb: 131072
+        vgpu_profile: grid_a100-40c
+      namespaces:
+      - name: tkg-system
+        description: Tanzu Core Infrastructure
+        storage_limit_gb: 1000
+      - name: prod-apps
+        description: Production Workloads
+        storage_limit_gb: 5000
+      - name: ai-models
+        description: Private AI Inference Services
+        storage_limit_gb: 10000
+    hosts:
+    - id: esx-fintech-05
+      fqdn: esx-fintech-05.corp.global
+      ip: 10.20.20.101
+      cores: 128
+      memory_gb: 1024
+      storage_tb: 28
+      status: ASSIGNED
+    - id: esx-fintech-06
+      fqdn: esx-fintech-06.corp.global
+      ip: 10.20.20.102
+      cores: 128
+      memory_gb: 1024
+      storage_tb: 28
+      status: ASSIGNED
+  edge_cluster:
+    id: edge-cl-wld-fintech-prod
+    name: wld-fintech-prod-edge-cl01
+    nodes:
+    - name: edge-node-wld-fintech-prod-01
+      mgmt_ip: 192.168.20.21
+      tep_ip: 192.168.101.21
+    - name: edge-node-wld-fintech-prod-02
+      mgmt_ip: 192.168.20.22
+      tep_ip: 192.168.101.22
+- id: domain-wld02-healthcare
+  name: wld-healthcare-prod
+  domain_type: VI
+  tenant_organization: Healthcare-LifeSciences-Division
+  vcenter:
+    id: vc-health-01
+    fqdn: vc-health.corp.global
+    ip_address: 10.30.10.10
+  nsx_manager:
+    id: nsx-health-01
+    vip_fqdn: nsx-health.corp.global
+    ip_address: 10.30.10.11
+  srm_instance:
+    id: srm-wld-healthcare-prod
+    fqdn: srm-wld-healthcare-prod.corp.local
+    site_name: Site-wld-healthcare-prod
+  clusters:
+  - id: cluster-health-01
+    name: health-ehr-cl01
+    primary_datastore_name: vsan-health-ds01
+    vsphere_supervisor:
+      cluster_id: domain-c8-health
+      config_status: RUNNING
+      kubernetes_status: READY
+      api_endpoint: https://10.30.10.250:6443
+      kubernetes_version: v1.30.2+vmware.1
+      master_nodes:
+      - 10.30.10.251
+      - 10.30.10.252
+      namespaces:
+      - name: hipaa-patient-portal
+        description: Patient EHR portal
+        storage_limit_gb: 8000
+    hosts:
+    - id: esx-health-01
+      fqdn: esx-health-01.corp.global
+      ip: 10.30.10.101
+      cores: 128
+      memory_gb: 1024
+      storage_tb: 28
+      status: ASSIGNED
+    - id: esx-health-02
+      fqdn: esx-health-02.corp.global
+      ip: 10.30.10.102
+      cores: 128
+      memory_gb: 1024
+      storage_tb: 28
+      status: ASSIGNED
+  edge_cluster:
+    id: edge-cl-wld-healthcare-prod
+    name: wld-healthcare-prod-edge-cl01
+    nodes:
+    - name: edge-node-wld-healthcare-prod-01
+      mgmt_ip: 192.168.20.21
+      tep_ip: 192.168.101.21
+    - name: edge-node-wld-healthcare-prod-02
+      mgmt_ip: 192.168.20.22
+      tep_ip: 192.168.101.22
+- id: domain-wld03-ai
+  name: wld-ai-research
+  domain_type: AI_ML
+  tenant_organization: Private-AI-Research-Division
+  vcenter:
+    id: vc-ai-01
+    fqdn: vc-ai.corp.global
+    ip_address: 10.40.10.10
+  nsx_manager:
+    id: nsx-ai-01
+    vip_fqdn: nsx-ai.corp.global
+    ip_address: 10.40.10.11
+  srm_instance:
+    id: srm-wld-ai-research
+    fqdn: srm-wld-ai-research.corp.local
+    site_name: Site-wld-ai-research
+  clusters:
+  - id: cluster-ai-01
+    name: ai-gpu-cl01
+    primary_datastore_name: vsan-ai-ds01
+    vsphere_supervisor:
+      cluster_id: domain-c8-ai
+      config_status: RUNNING
+      kubernetes_status: READY
+      api_endpoint: https://10.40.10.250:6443
+      kubernetes_version: v1.30.2+vmware.1
+      master_nodes:
+      - 10.40.10.251
+      - 10.40.10.252
+      vm_service_classes:
+      - name: ai-gpu-quad
+        cpu: 32
+        memory_mb: 131072
+        vgpu_profile: grid_a100-40c
+      namespaces:
+      - name: ai-models-llm
+        description: Large Language Model Inference
+        storage_limit_gb: 50000
+      - name: ai-rag-pipeline
+        description: Retrieval Augmented Generation Vector Store
+        storage_limit_gb: 25000
+    hosts:
+    - id: esx-ai-01
+      fqdn: esx-ai-01.corp.global
+      ip: 10.40.10.101
+      cores: 128
+      memory_gb: 2048
+      storage_tb: 56
+      status: ASSIGNED
+    - id: esx-ai-02
+      fqdn: esx-ai-02.corp.global
+      ip: 10.40.10.102
+      cores: 128
+      memory_gb: 2048
+      storage_tb: 56
+      status: ASSIGNED
+  edge_cluster:
+    id: edge-cl-wld-ai-research
+    name: wld-ai-research-edge-cl01
+    nodes:
+    - name: edge-node-wld-ai-research-01
+      mgmt_ip: 192.168.20.21
+      tep_ip: 192.168.101.21
+    - name: edge-node-wld-ai-research-02
+      mgmt_ip: 192.168.20.22
+      tep_ip: 192.168.101.22
+nsx_tier0s:
+- id: t0-fintech
+  display_name: Tier0-Fintech-Gateway
+  ha_mode: ACTIVE_ACTIVE
+  bgp_asn: 65010
+  tenant_org: Fintech-Banking-Division
+- id: t0-healthcare
+  display_name: Tier0-Healthcare-Gateway
+  ha_mode: ACTIVE_ACTIVE
+  bgp_asn: 65020
+  tenant_org: Healthcare-LifeSciences-Division
+- id: t0-private-ai
+  display_name: Tier0-PrivateAI-Gateway
+  ha_mode: ACTIVE_ACTIVE
+  bgp_asn: 65030
+  tenant_org: Private-AI-Research-Division
+nsx_tier1s:
+- id: t1-fintech-apps
+  display_name: Tier1-Fintech-Apps
+  tier0_path: /infra/tier-0s/t0-fintech
+  tenant_org: Fintech-Banking-Division
+- id: t1-healthcare-ehr
+  display_name: Tier1-Healthcare-EHR
+  tier0_path: /infra/tier-0s/t0-healthcare
+  tenant_org: Healthcare-LifeSciences-Division
+- id: t1-ai-infer
+  display_name: Tier1-AI-Inference
+  tier0_path: /infra/tier-0s/t0-private-ai
+  tenant_org: Private-AI-Research-Division
+nsx_segments:
+- id: seg-fintech-apps
+  display_name: Fintech-Apps-Segment
+  connectivity_path: /infra/tier-1s/t1-fintech-apps
+  subnets:
+  - gateway_address: 10.20.100.1/24
+  tenant_org: Fintech-Banking-Division
+- id: seg-fintech-db
+  display_name: Fintech-DB-Segment
+  connectivity_path: /infra/tier-1s/t1-fintech-apps
+  subnets:
+  - gateway_address: 10.20.101.1/24
+  tenant_org: Fintech-Banking-Division
+- id: seg-healthcare-ehr
+  display_name: Healthcare-EHR-Segment
+  connectivity_path: /infra/tier-1s/t1-healthcare-ehr
+  subnets:
+  - gateway_address: 10.30.100.1/24
+  tenant_org: Healthcare-LifeSciences-Division
+- id: seg-ai-infer
+  display_name: AI-Inference-Segment
+  connectivity_path: /infra/tier-1s/t1-ai-infer
+  subnets:
+  - gateway_address: 10.40.100.1/24
+  tenant_org: Private-AI-Research-Division
+nsx_groups: []
+nsx_security_policies: []
+tenant_vms:
+- id: vm-fintech-web01
+  name: fintech-web-frontend01
+  power_state: POWERED_ON
+  cpu_count: 4
+  memory_size_MiB: 16384
+  ip_address: 10.20.100.15
+  datastore: vsan-fintech-prod-ds01
+  tenant_org: Fintech-Banking-Division
+  workload_domain_id: domain-wld01-fintech
+- id: vm-fintech-db01
+  name: fintech-oracle-core01
+  power_state: POWERED_ON
+  cpu_count: 16
+  memory_size_MiB: 65536
+  ip_address: 10.20.101.20
+  datastore: vsan-fintech-prod-ds01
+  tenant_org: Fintech-Banking-Division
+  workload_domain_id: domain-wld01-fintech
+- id: vm-health-ehr01
+  name: health-epic-ehr01
+  power_state: POWERED_ON
+  cpu_count: 8
+  memory_size_MiB: 32768
+  ip_address: 10.30.100.10
+  datastore: vsan-health-ds01
+  tenant_org: Healthcare-LifeSciences-Division
+  workload_domain_id: domain-wld02-healthcare
+- id: vm-ai-infer01
+  name: pai-vllm-llama3-70b
+  power_state: POWERED_ON
+  cpu_count: 32
+  memory_size_MiB: 131072
+  ip_address: 10.40.100.50
+  datastore: vsan-ai-ds01
+  tenant_org: Private-AI-Research-Division
+  workload_domain_id: domain-wld03-ai
+vr_profiles:
+- id: vr-prof-5min-critical
+  name: Banking Critical 5-Minute RPO
+  rpo_minutes: 5
+- id: vr-prof-15min-standard
+  name: Healthcare EHR 15-Minute RPO
+  rpo_minutes: 15
+vr_replications:
+- id: rep-fintech-db01
+  vm_id: vm-fintech-db01
+  vm_name: fintech-oracle-core01
+  rpo_minutes: 5
+  status: OK
+  health: NORMAL
+  target_datastore: vsan-fintech-batch-ds02
+protection_and_recovery:
+  pairings:
+  - id: pair-fintech-dr
+    pairing_name: Fintech-Prod-to-Fintech-DR
+    local_site:
+      name: Site-Fintech-Prod
+      srm_host: srm-fintech-prod.corp.global
+    peer_site:
+      name: Site-Fintech-DR
+      srm_host: srm-fintech-dr.corp.global
+    status: CONNECTED
+    network_mappings:
+    - source_network: seg-fintech-apps
+      target_network: seg-fintech-apps-dr
+    protection_groups:
+    - id: pg-fintech-core
+      name: PG-Fintech-Core-Banking
+      type: VSPHERE_REPLICATION
+      rpo_minutes: 5
+      protected_vms:
+      - id: vm-fintech-db01
+        name: fintech-oracle-core01
+        status: PROTECTED
+        consistency: CONSISTENT
+    recovery_plans:
+    - id: rp-fintech-emergency-dr
+      name: RP-Fintech-Emergency-Failover
+      protection_groups:
+      - pg-fintech-core
+      status: READY
+      last_test_result: SUCCESSFUL

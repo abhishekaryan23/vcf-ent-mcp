@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Enterprise VCF MCP Deployment Topologies & High Availability",
+    "subtitle": "Dual pattern deployments, appliance mode vs enterprise HA cluster, and multi-datacenter fleet topology",
+    "output": "vcf_enterprise_mcp/docs/interactive_architecture/deployment_topology.html",
+    "visual_preset": "blueprint",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "in-network-pattern",
+        "label": "Pattern 1: In-Network Agent",
+        "focus": ["op_user", "agent_runtime", "cloud_llm", "mcp_node1", "dc1_vcf"],
+        "note": "Zero inbound exposure. Internal agent initiates outbound prompts and local MCP tools."
+      },
+      {
+        "id": "gateway-ha-cluster",
+        "label": "Pattern 2: Gateway HA Cluster",
+        "focus": ["corp_gateway", "mcp_node1", "mcp_node2", "store_pg", "dc1_vcf"],
+        "note": "Load-balanced MCP cluster backed by PostgreSQL HA with row-level locks."
+      },
+      {
+        "id": "storage-profiles",
+        "label": "Dual Storage Profiles",
+        "focus": ["mcp_node1", "store_sqlite", "mcp_node2", "store_pg", "dc1_vcf", "dc2_vcf"],
+        "note": "MODE A single-appliance SQLite WAL vs MODE B multi-node PostgreSQL HA."
+      }
+    ]
+  },
+  "components": [
+    { "id": "op_user", "type": "external", "label": "Enterprise Operator", "sublabel": "Workstation / Laptop", "pos": [40, 50], "size": [140, 60], "tag": "operator" },
+    { "id": "agent_runtime", "type": "frontend", "label": "Internal Agent", "sublabel": "Claude Code / Cursor", "pos": [40, 185], "size": [140, 60], "tag": "in-network" },
+    { "id": "cloud_llm", "type": "cloud", "label": "Enterprise LLM", "sublabel": "Azure / OpenAI / GCP", "pos": [40, 340], "size": [140, 60], "tag": "HTTPS only" },
+    { "id": "corp_gateway", "type": "security", "label": "API Gateway / ALB", "sublabel": "F5 / NSX ALB :443", "pos": [270, 50], "size": [140, 60], "tag": "pattern 2" },
+    { "id": "mcp_node1", "type": "backend", "label": "VCF MCP Node 01", "sublabel": "Stateless Edge :8443", "pos": [270, 185], "size": [140, 60], "tag": "cluster" },
+    { "id": "mcp_node2", "type": "backend", "label": "VCF MCP Node 02", "sublabel": "Stateless Edge :8443", "pos": [270, 340], "size": [140, 60], "tag": "cluster" },
+    { "id": "store_sqlite", "type": "database", "label": "MODE A: SQLite", "sublabel": "WAL / Local NVMe", "pos": [500, 185], "size": [140, 60], "tag": "appliance" },
+    { "id": "store_pg", "type": "database", "label": "MODE B: Postgres", "sublabel": "HA Cluster / Aurora", "pos": [500, 340], "size": [140, 60], "tag": "HA state" },
+    { "id": "dc1_vcf", "type": "cloud", "label": "DC-1 Santa Clara", "sublabel": "SDDC, vCenter, NSX", "pos": [730, 185], "size": [140, 60], "tag": "primary" },
+    { "id": "dc2_vcf", "type": "cloud", "label": "DC-2 Las Vegas", "sublabel": "SRM & DR Bubble", "pos": [730, 340], "size": [140, 60], "tag": "recovery" }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Workstation & Local Runtime Enclave", "wraps": ["op_user", "agent_runtime", "cloud_llm"] },
+    { "kind": "region", "label": "Datacenter Control Plane Cluster", "wraps": ["corp_gateway", "mcp_node1", "mcp_node2", "store_sqlite", "store_pg"] },
+    { "kind": "region", "label": "Broadcom VCF 9.x Multi-DC Fleet", "wraps": ["dc1_vcf", "dc2_vcf"] }
+  ],
+  "connections": [
+    { "id": "user-agent", "from": "op_user", "to": "agent_runtime", "variant": "default", "route": "straight" },
+    { "id": "agent-cloud", "from": "agent_runtime", "to": "cloud_llm", "variant": "dashed", "route": "straight" },
+    { "id": "agent-mcp1", "from": "agent_runtime", "to": "mcp_node1", "variant": "emphasis", "route": "straight" },
+    { "id": "gw-mcp1", "from": "corp_gateway", "to": "mcp_node1", "variant": "security", "route": "straight" },
+    { "id": "mcp1-sqlite", "from": "mcp_node1", "to": "store_sqlite", "variant": "default", "route": "straight" },
+    { "id": "mcp2-pg", "from": "mcp_node2", "to": "store_pg", "variant": "emphasis", "route": "straight" },
+    { "id": "sqlite-dc1", "from": "store_sqlite", "to": "dc1_vcf", "variant": "security", "route": "straight" },
+    { "id": "pg-dc2", "from": "store_pg", "to": "dc2_vcf", "variant": "security", "route": "straight" },
+    { "id": "dc1-dc2", "from": "dc1_vcf", "to": "dc2_vcf", "variant": "dashed", "route": "straight" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Pattern 1: In-Network Agent",
+      "items": [
+        "External LLM never initiates inbound connections into corporate datacenter",
+        "Agent process prompts LLM outbound via HTTPS and calls MCP tools locally over stdio",
+        "Zero firewall pinholes or public gateway exposures required"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Pattern 2: Gateway Cluster",
+      "items": [
+        "Stateless MCP protocol nodes deployed behind enterprise ALB / F5",
+        "Mutual TLS (mTLS) and OAuth 2.0 Bearer tokens enforced at edge",
+        "Dynamic routing with automatic node failure failover"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Dual Storage Architecture",
+      "items": [
+        "MODE A: Single-VM appliance using SQLite WAL mode with zero administrative overhead",
+        "MODE B: Enterprise HA using PostgreSQL cluster with row-level locks and outbox replication",
+        "Seamless zero-downtime rolling upgrades across all control plane nodes"
+      ]
+    }
+  ]
+}

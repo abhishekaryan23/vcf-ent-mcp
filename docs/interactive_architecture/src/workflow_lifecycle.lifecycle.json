@@ -1,0 +1,90 @@
+{
+  "schema_version": 1,
+  "diagram_type": "lifecycle",
+  "meta": {
+    "title": "VCF MCP Workflow Engine Lifecycle",
+    "subtitle": "12-state deterministic state machine and 4-phase step reconciliation",
+    "output": "vcf_enterprise_mcp/docs/interactive_architecture/workflow_lifecycle.html",
+    "viewBox": [980, 680],
+    "animation": "trace",
+    "visual_preset": "signal-flow",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "main-rail",
+        "label": "Promotion Rail",
+        "focus": ["planned", "executing", "verifying", "reconciling", "succeeded"],
+        "note": "Deterministic progression from intent recording to verified postcondition."
+      },
+      {
+        "id": "approval-and-cancel",
+        "label": "Approval Gate & Cancel",
+        "focus": ["verifying", "approval", "cancelled"],
+        "note": "Four-eyes pause and clean cancellation before irreversible boundaries."
+      },
+      {
+        "id": "recovery-and-compensation",
+        "label": "Compensation & Recovery",
+        "focus": ["reconciling", "compensating", "compensated", "manual", "failed"],
+        "note": "Saga compensation for pre-boundary steps and manual intervention for network ambiguity."
+      }
+    ]
+  },
+  "lanes": [
+    { "id": "main", "label": "Execution Rail" },
+    { "id": "waiting", "label": "Four-Eyes & Reconcile" },
+    { "id": "recovery", "label": "Saga Compensation" },
+    { "id": "terminal", "label": "Terminal Exits" }
+  ],
+  "states": [
+    { "id": "planned", "type": "start", "label": "PLANNED", "sublabel": "intent recorded", "lane": "main", "col": 0, "step": "01", "tag": "outbox" },
+    { "id": "executing", "type": "active", "label": "EXECUTING", "sublabel": "fenced dispatch", "lane": "main", "col": 1, "step": "02", "tag": "active" },
+    { "id": "verifying", "type": "decision", "label": "VERIFYING", "sublabel": "postcondition", "lane": "main", "col": 2, "step": "03", "tag": "check" },
+    { "id": "reconciling", "type": "active", "label": "RECONCILING", "sublabel": "ground truth", "lane": "main", "col": 3, "step": "04", "tag": "probe" },
+    { "id": "succeeded", "type": "success", "label": "SUCCEEDED", "sublabel": "audit anchored", "lane": "main", "col": 4, "step": "05", "tag": "success" },
+    { "id": "approval", "type": "waiting", "label": "APPROVAL_WAIT", "sublabel": "four-eyes gate", "lane": "waiting", "col": 0, "tag": "pause" },
+    { "id": "compensating", "type": "active", "label": "COMPENSATING", "sublabel": "saga rollback", "lane": "recovery", "col": 1, "tag": "rollback" },
+    { "id": "manual", "type": "waiting", "label": "MANUAL_HOLD", "sublabel": "operator review", "lane": "waiting", "col": 2, "tag": "escalation" },
+    { "id": "cancelled", "type": "failure", "label": "CANCELLED", "sublabel": "intent revoked", "lane": "terminal", "col": 0, "tag": "terminal" },
+    { "id": "compensated", "type": "success", "label": "COMPENSATED", "sublabel": "safe restoration", "lane": "terminal", "col": 1, "tag": "terminal" },
+    { "id": "failed", "type": "failure", "label": "FAILED", "sublabel": "terminal abort", "lane": "terminal", "col": 2, "tag": "terminal" }
+  ],
+  "transitions": [
+    { "from": "verifying", "to": "approval", "variant": "security", "route": "straight", "fromSide": "bottom", "toSide": "top" },
+    { "from": "approval", "to": "cancelled", "variant": "security", "route": "straight", "fromSide": "bottom", "toSide": "top" },
+    { "from": "reconciling", "to": "compensating", "variant": "emphasis", "route": "straight", "fromSide": "bottom", "toSide": "top" },
+    { "from": "compensating", "to": "compensated", "variant": "emphasis", "route": "straight", "fromSide": "bottom", "toSide": "top" },
+    { "from": "succeeded", "to": "manual", "variant": "dashed", "route": "straight", "fromSide": "bottom", "toSide": "top" },
+    { "from": "manual", "to": "failed", "variant": "security", "route": "straight", "fromSide": "bottom", "toSide": "top" }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "4-Phase Step Lifecycle",
+      "items": [
+        "1. PREPARE: Records execution intent outbox entry in durable storage",
+        "2. EXECUTE: Dispatches mutation carrying monotonic fencing token",
+        "3. RECONCILE: Probes remote ground truth if network drop occurs",
+        "4. VERIFY: Asserts target entity reached desired postcondition"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "Interruption & Approval",
+      "items": [
+        "High-risk workflow steps pause at APPROVAL_WAIT without blocking worker thread",
+        "Revocation or denial transitions state cleanly to CANCELLED",
+        "Automatic workflow resumption continues immediately upon signature receipt"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Saga Compensation",
+      "items": [
+        "Compensable steps rollback in reverse dependency order",
+        "Irreversible boundary (ESXi flash) transitions to MANUAL_HOLD if reconciliation fails",
+        "Every terminal state emits a signed audit record before completion"
+      ]
+    }
+  ]
+}

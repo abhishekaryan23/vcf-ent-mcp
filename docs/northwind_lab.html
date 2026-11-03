@@ -1,0 +1,498 @@
+<title>Northwind VCF Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* design plan: blueprint-neutral. 6 tokens: bg, panel, fg, line + read (cool blue) + write/approval (amber). Plex Sans body, Plex Mono labels.
+   layout: left-aligned single column, max 1200px, diagrams in horizontal scroll containers. */
+:root {
+  --bg: #f3f5f7; --panel: #ffffff; --fg: #16232e; --line: #aab6c1;
+  --read: #0a6f8f; --write: #b5560b;
+  --sans: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1a22; --panel: #16242e; --fg: #dce6ee; --line: #3d5160;
+    --read: #4fb8d9; --write: #f0a14a; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1a22; --panel: #16242e; --fg: #dce6ee; --line: #3d5160;
+  --read: #4fb8d9; --write: #f0a14a; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 400 16px/1.55 var(--sans);
+  padding-block: 32px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px)); overflow-x: hidden; }
+.wrap { max-width: 1200px; margin: 0 auto; }
+h1 { font-size: 28px; line-height: 1.2; margin: 0 0 12px; font-weight: 600; letter-spacing: -0.01em; }
+h2 { font-size: 20px; margin: 48px 0 8px; font-weight: 600; padding-top: 16px; border-top: 1px solid var(--line); }
+p { margin: 0 0 12px; max-width: 74ch; }
+code, .mono { font-family: var(--mono); }
+code { font-size: 0.88em; background: var(--panel); border: 1px solid var(--line); border-radius: 3px; padding: 1px 5px; overflow-wrap: anywhere; }
+.eyebrow { font: 500 12px/1 var(--mono); text-transform: uppercase; letter-spacing: .08em; margin: 0 0 14px; color: var(--read); }
+.note { background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 14px 16px; max-width: 74ch; margin-top: 18px; }
+.note h3 { margin: 0 0 6px; font-size: 14px; font-weight: 600; }
+.note p { margin: 0; font-size: 14px; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 13px; margin: 8px 0 14px; padding: 0; list-style: none; }
+.legend li { display: flex; align-items: center; gap: 6px; }
+.sw { width: 12px; height: 12px; border: 2px solid var(--read); background: var(--panel); display: inline-block; }
+.sw.w { border-color: var(--write); }
+.sw.t { border-style: dashed; border-color: var(--fg); }
+figure { margin: 0 0 20px; }
+figcaption { font-size: 14px; margin-bottom: 8px; max-width: 80ch; }
+figcaption b { font-weight: 600; }
+.scroll { overflow-x: auto; border: 1px solid var(--line); background: var(--bg); border-radius: 4px; -webkit-overflow-scrolling: touch; }
+.scroll svg { display: block; width: 100%; height: auto; min-width: 1000px; }
+.scroll svg.d2 { min-width: 1060px; }
+table { border-collapse: collapse; width: 100%; min-width: 640px; font-size: 14px; }
+th, td { text-align: left; vertical-align: top; padding: 8px 12px; border-bottom: 1px solid var(--line); }
+th { font: 500 12px/1.2 var(--mono); text-transform: uppercase; letter-spacing: .06em; background: var(--panel); }
+td:first-child { font-family: var(--mono); white-space: nowrap; font-weight: 500; }
+.faults { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 0 28px; padding: 0; margin: 8px 0 14px; list-style: none; font-size: 14px; }
+.faults li { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.faults code { display: inline-block; margin-right: 6px; }
+h3.sub { font-size: 13px; font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; margin: 20px 0 4px; font-weight: 500; }
+/* svg */
+svg text { font-family: var(--sans); font-size: 12px; fill: var(--fg); }
+svg text.mono, svg .mono { font-family: var(--mono); }
+svg .ti { font-size: 13px; font-weight: 600; }
+svg .dt { font-size: 12px; }
+svg .mut { opacity: .7; }
+svg .strong { font-weight: 600; }
+svg .lbl { font-size: 11px; opacity: .65; }
+svg .band { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; opacity: .75; }
+svg .ver { font-family: var(--mono); font-size: 12px; font-weight: 600; fill: var(--read); }
+svg .ver.old { fill: var(--write); }
+svg .dn { font-size: 14px; font-weight: 600; }
+svg .al { font-size: 11.5px; }
+svg .node rect { fill: var(--panel); stroke: var(--line); stroke-width: 1.2; }
+svg .dom rect { fill: var(--bg); stroke: var(--line); stroke-width: 1.2; }
+svg .shared rect { fill: var(--panel); stroke: var(--read); stroke-width: 2.5; }
+svg .ext rect { stroke-dasharray: 5 3; }
+svg .ad rect { fill: var(--panel); }
+svg .ln { stroke: var(--line); stroke-width: 1.2; fill: none; }
+svg .ar { stroke: var(--fg); stroke-width: 1.4; fill: none; }
+svg .a-r, svg .bgp { stroke: var(--read); }
+svg .a-w { stroke: var(--write); stroke-width: 1.8; }
+svg .mk-n { fill: var(--fg); } svg .mk-r { fill: var(--read); } svg .mk-w { fill: var(--write); }
+svg .lane rect { fill: var(--panel); stroke: var(--line); stroke-width: 1; }
+svg .lane-h rect { fill: var(--write); fill-opacity: .12; stroke: var(--write); stroke-width: 2; }
+svg .lane-t { font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: .05em; }
+svg .tb { stroke: var(--fg); stroke-width: 2; stroke-dasharray: 8 5; fill: none; }
+svg .st.r rect { stroke: var(--read); stroke-width: 1.6; }
+svg .st.w rect { stroke: var(--write); stroke-width: 1.6; }
+svg .st.hum rect { stroke-width: 2.5; }
+svg .bd { fill: var(--fg); stroke: none; }
+svg .st.r .bd { fill: var(--read); } svg .st.w .bd { fill: var(--write); }
+svg .bn { font-size: 10.5px; font-weight: 700; fill: var(--bg); font-family: var(--mono); }
+svg .note rect { stroke-dasharray: 3 3; fill: var(--bg); }
+svg .chip rect { fill: var(--bg); stroke: var(--line); }
+</style>
+<div class="wrap">
+<p class="eyebrow">VCF Enterprise MCP / test lab</p>
+<h1>Northwind VCF Lab</h1>
+<p>This is the simulated lab the VCF Enterprise MCP is tested against: a fictional group, Northwind, with five workload domains on mixed VCF versions and one shared NSX. Every appliance is simulated; this is an unofficial project and is still under testing.</p>
+<div class="note"><h3>Use it from LM Studio</h3>
+<p>LM Studio's <code>mcp.json</code> now has two servers: <code>vcf-northwind-oncall</code> (read-only) and <code>vcf-northwind-automation</code> (changes need approval: <code>python tools/org_sim/lab.py approve automation &lt;plan_id&gt;</code>). Switch faults with <code>lab.py switch</code>; no need to edit LM Studio.</p></div>
+
+<h2>The estate</h2>
+<ul class="legend">
+<li><span class="sw"></span> VCF 9.1.1 or shared component</li>
+<li><span class="sw w"></span> Version differs from 9.1.1 (amber text in the diagram)</li>
+<li><span class="sw t"></span> Physical or external</li>
+</ul>
+<figure>
+<figcaption><b>Northwind runs five VCF workload domains on mixed versions, and one NSX Manager (nsx-wld01) is shared by wld-corp and wld-dev.</b></figcaption>
+<div class="scroll" tabindex="0" role="region" aria-label="Estate diagram, scrolls horizontally on narrow screens">
+<svg class="dg" viewBox="0 0 1200 800" width="100%" role="img" aria-label="Northwind runs five VCF workload domains on mixed versions, with one NSX Manager shared by wld-corp and wld-dev." xmlns="http://www.w3.org/2000/svg"><defs><marker id="ah-n" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="mk-n" d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker><marker id="ah-r" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="mk-r" d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker><marker id="ah-w" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="mk-w" d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs><text x="20" y="14" class="band" fill="currentColor">FLEET SERVICES</text>
+<g class="node"><rect x="20" y="22" width="370" height="96" rx="3" fill="none"/><text x="30" y="42" class="ti" fill="currentColor">SDDC Manager</text><text x="380" y="42" class="ver" text-anchor="end" fill="currentColor">sddc01</text><text x="30" y="62" class="dt" fill="currentColor">VCF 9.1.1</text></g>
+<g class="node"><rect x="415" y="22" width="370" height="96" rx="3" fill="none"/><text x="425" y="42" class="ti" fill="currentColor">VCF Operations</text><text x="775" y="42" class="ver" text-anchor="end" fill="currentColor">vcf-ops01</text><text x="425" y="62" class="dt" fill="currentColor">Cloud proxies: cp-hq-01, cp-fin-01, cp-eu-01</text></g>
+<g class="node"><rect x="810" y="22" width="370" height="96" rx="3" fill="none"/><text x="820" y="42" class="ti" fill="currentColor">VCF Automation</text><text x="1170" y="42" class="ver" text-anchor="end" fill="currentColor">vcf-auto01</text><text x="820" y="62" class="dt" fill="currentColor">Org &quot;northwind&quot;</text><text x="820" y="79" class="dt" fill="currentColor">Assembler + embedded Orchestrator</text></g>
+<path class="ln" d="M205 118 V146" fill="none"/>
+<path class="ln" d="M600 118 V146" fill="none"/>
+<path class="ln" d="M995 118 V146" fill="none"/>
+<path class="ln" d="M132 146 H1068" fill="none"/>
+<text x="20" y="140" class="dt mut" fill="currentColor">manage / monitor / automate</text>
+<path class="ar" d="M132 146 V176" fill="none" marker-end="url(#ah-n)"/>
+<path class="ar" d="M366 146 V176" fill="none" marker-end="url(#ah-n)"/>
+<path class="ar" d="M600 146 V176" fill="none" marker-end="url(#ah-n)"/>
+<path class="ar" d="M834 146 V176" fill="none" marker-end="url(#ah-n)"/>
+<path class="ar" d="M1068 146 V176" fill="none" marker-end="url(#ah-n)"/>
+<text x="150" y="172" class="band" fill="currentColor">WORKLOAD DOMAINS</text>
+<g class="dom"><rect x="20" y="178" width="224" height="384" rx="3" fill="none"/>
+<text x="32" y="202" class="dn mono" fill="currentColor">mgmt</text>
+<text x="232" y="202" class="dt mut" text-anchor="end" fill="currentColor">management</text>
+<path class="ln" d="M20 212 H244" fill="none"/></g>
+<g class="node ">
+<rect x="28" y="222" width="208" height="40" rx="3" fill="none"/>
+<text x="38" y="240" class="ti mono" fill="currentColor">vc-mgmt01</text>
+<text x="226" y="240" class="ver" text-anchor="end" fill="currentColor">9.1.1</text>
+<text x="38" y="258" class="dt" fill="currentColor">vCenter</text>
+</g>
+<g class="node ">
+<rect x="28" y="270" width="208" height="58" rx="3" fill="none"/>
+<text x="38" y="285" class="lbl" fill="currentColor">Clusters</text>
+<text x="38" y="316" class="dt" fill="currentColor">mgmt-cl01 · 4 hosts</text>
+</g>
+<g class="node ">
+<rect x="28" y="336" width="208" height="50" rx="3" fill="none"/>
+<text x="38" y="354" class="ti mono" fill="currentColor">nsx-mgmt01</text>
+<text x="226" y="354" class="ver" text-anchor="end" fill="currentColor">9.1.1</text>
+<text x="38" y="372" class="dt" fill="currentColor">NSX Manager, dedicated</text>
+</g>
+<g class="node ">
+<rect x="28" y="394" width="208" height="160" rx="3" fill="none"/>
+<text x="38" y="409" class="lbl" fill="currentColor">Networking</text>
+<text x="38" y="440" class="dt" fill="currentColor">VDS VLAN port groups</text>
+</g>
+<g class="dom"><rect x="254" y="178" width="224" height="384" rx="3" fill="none"/>
+<text x="266" y="202" class="dn mono" fill="currentColor">wld-corp</text>
+<text x="466" y="202" class="dt mut" text-anchor="end" fill="currentColor">workload</text>
+<path class="ln" d="M254 212 H478" fill="none"/></g>
+<g class="node ">
+<rect x="262" y="222" width="208" height="40" rx="3" fill="none"/>
+<text x="272" y="240" class="ti mono" fill="currentColor">vc-corp01</text>
+<text x="460" y="240" class="ver" text-anchor="end" fill="currentColor">9.1.1</text>
+<text x="272" y="258" class="dt" fill="currentColor">vCenter</text>
+</g>
+<g class="node ">
+<rect x="262" y="270" width="208" height="58" rx="3" fill="none"/>
+<text x="272" y="285" class="lbl" fill="currentColor">Clusters</text>
+<text x="272" y="303" class="dt" fill="currentColor">corp-cl01 · 6 hosts</text>
+<text x="272" y="319" class="dt" fill="currentColor">corp-cl02 · 4 hosts</text>
+</g>
+<g class="node ">
+<rect x="262" y="394" width="208" height="160" rx="3" fill="none"/>
+<text x="272" y="409" class="lbl" fill="currentColor">Networking</text>
+<text x="272" y="440" class="dt" fill="currentColor">Overlay seg-corp-web/app/db/</text>
+<text x="272" y="455" class="dt" fill="currentColor">infra, dmz-proxy</text>
+<text x="272" y="470" class="dt" fill="currentColor">Tier-1 t1-corp, t1-corp-dmz</text>
+<text x="272" y="485" class="dt" fill="currentColor">→ Tier-0 t0-shared</text>
+<text x="272" y="500" class="dt" fill="currentColor">VLAN seg-corp-legacy-vlan120</text>
+<text x="272" y="515" class="dt" fill="currentColor">VPC vpc-ecom, project Digital</text>
+<text x="272" y="530" class="dt" fill="currentColor">centralized, transit gateway</text>
+<text x="272" y="545" class="dt" fill="currentColor">ecom-public, ecom-private-app</text>
+</g>
+<g class="dom"><rect x="488" y="178" width="224" height="384" rx="3" fill="none"/>
+<text x="500" y="202" class="dn mono" fill="currentColor">wld-dev</text>
+<text x="700" y="202" class="dt mut" text-anchor="end" fill="currentColor">workload</text>
+<path class="ln" d="M488 212 H712" fill="none"/></g>
+<g class="node ">
+<rect x="496" y="222" width="208" height="40" rx="3" fill="none"/>
+<text x="506" y="240" class="ti mono" fill="currentColor">vc-dev01</text>
+<text x="694" y="240" class="ver" text-anchor="end" fill="currentColor">9.1.1</text>
+<text x="506" y="258" class="dt" fill="currentColor">vCenter</text>
+</g>
+<g class="node ">
+<rect x="496" y="270" width="208" height="58" rx="3" fill="none"/>
+<text x="506" y="285" class="lbl" fill="currentColor">Clusters</text>
+<text x="506" y="316" class="dt" fill="currentColor">dev-cl01 · 4 hosts</text>
+</g>
+<g class="node ">
+<rect x="496" y="394" width="208" height="160" rx="3" fill="none"/>
+<text x="506" y="409" class="lbl" fill="currentColor">Networking</text>
+<text x="506" y="440" class="dt" fill="currentColor">VPC vpc-dev-team-a</text>
+<text x="506" y="455" class="dt" fill="currentColor">VPC vpc-dev-team-b</text>
+<text x="506" y="470" class="dt" fill="currentColor">Distributed connectivity,</text>
+<text x="506" y="485" class="dt" fill="currentColor">no edge</text>
+</g>
+<g class="dom"><rect x="722" y="178" width="224" height="384" rx="3" fill="none"/>
+<text x="734" y="202" class="dn mono" fill="currentColor">wld-fin</text>
+<text x="934" y="202" class="dt mut" text-anchor="end" fill="currentColor">workload</text>
+<path class="ln" d="M722 212 H946" fill="none"/></g>
+<g class="node ">
+<rect x="730" y="222" width="208" height="40" rx="3" fill="none"/>
+<text x="740" y="240" class="ti mono" fill="currentColor">vc-fin01</text>
+<text x="928" y="240" class="ver old" text-anchor="end" fill="currentColor">9.0.2</text>
+<text x="740" y="258" class="dt" fill="currentColor">vCenter</text>
+</g>
+<g class="node ">
+<rect x="730" y="270" width="208" height="58" rx="3" fill="none"/>
+<text x="740" y="285" class="lbl" fill="currentColor">Clusters</text>
+<text x="740" y="316" class="dt" fill="currentColor">fin-cl01 · 6 hosts</text>
+</g>
+<g class="node ">
+<rect x="730" y="336" width="208" height="50" rx="3" fill="none"/>
+<text x="740" y="354" class="ti mono" fill="currentColor">nsx-fin01</text>
+<text x="928" y="354" class="ver old" text-anchor="end" fill="currentColor">9.0.2</text>
+<text x="740" y="372" class="dt" fill="currentColor">NSX Manager, dedicated</text>
+</g>
+<g class="node ">
+<rect x="730" y="394" width="208" height="160" rx="3" fill="none"/>
+<text x="740" y="409" class="lbl" fill="currentColor">Networking</text>
+<text x="740" y="440" class="dt" fill="currentColor">Overlay seg-fin-web/app/db/</text>
+<text x="740" y="455" class="dt" fill="currentColor">infra; isolated</text>
+<text x="740" y="470" class="dt" fill="currentColor">seg-fin-sql-heartbeat</text>
+<text x="740" y="485" class="dt" fill="currentColor">Zero-trust DFW, default DROP</text>
+<text x="740" y="500" class="dt" fill="currentColor">t1-fin → t0-fin</text>
+</g>
+<g class="dom"><rect x="956" y="178" width="224" height="384" rx="3" fill="none"/>
+<text x="968" y="202" class="dn mono" fill="currentColor">wld-eu</text>
+<text x="1168" y="202" class="dt mut" text-anchor="end" fill="currentColor">workload</text>
+<path class="ln" d="M956 212 H1180" fill="none"/></g>
+<g class="node ">
+<rect x="964" y="222" width="208" height="40" rx="3" fill="none"/>
+<text x="974" y="240" class="ti mono" fill="currentColor">vc-eu01</text>
+<text x="1162" y="240" class="ver old" text-anchor="end" fill="currentColor">8.0.3</text>
+<text x="974" y="258" class="dt" fill="currentColor">vCenter, imported vSphere 8</text>
+</g>
+<g class="node ">
+<rect x="964" y="270" width="208" height="58" rx="3" fill="none"/>
+<text x="974" y="285" class="lbl" fill="currentColor">Clusters</text>
+<text x="974" y="316" class="dt" fill="currentColor">eu-cl01 · 4 hosts</text>
+</g>
+<g class="node ">
+<rect x="964" y="336" width="208" height="50" rx="3" fill="none"/>
+<text x="974" y="354" class="ti mono" fill="currentColor">nsx-eu01</text>
+<text x="1162" y="354" class="ver old" text-anchor="end" fill="currentColor">4.2.1</text>
+<text x="974" y="372" class="dt" fill="currentColor">NSX Manager, dedicated</text>
+</g>
+<g class="node ">
+<rect x="964" y="394" width="208" height="160" rx="3" fill="none"/>
+<text x="974" y="409" class="lbl" fill="currentColor">Networking</text>
+<text x="974" y="440" class="dt" fill="currentColor">VDS VLAN port groups:</text>
+<text x="974" y="455" class="dt" fill="currentColor">pg-eu-web/app/db/dmz/</text>
+<text x="974" y="470" class="dt" fill="currentColor">quarantine</text>
+<text x="974" y="485" class="dt" fill="currentColor">DFW on VDS port groups,</text>
+<text x="974" y="500" class="dt" fill="currentColor">distributed security only</text>
+<text x="974" y="515" class="dt" fill="currentColor">Routing on Cisco ASA</text>
+</g>
+<g class="node shared"><rect x="262" y="336" width="442" height="50" rx="3" fill="none"/><text x="272" y="354" class="ti mono" fill="currentColor">nsx-wld01</text><text x="694" y="354" class="ver" text-anchor="end" fill="currentColor">9.1.1</text><text x="272" y="372" class="dt strong" fill="currentColor">NSX Manager, SHARED by wld-corp and wld-dev</text></g>
+<text x="20" y="640" class="band" fill="currentColor">PHYSICAL / EXTERNAL</text>
+<path class="ar bgp" d="M483 562 V612" fill="none" marker-start="url(#ah-r)" marker-end="url(#ah-r)"/>
+<text x="491" y="583" class="dt strong" fill="currentColor">BGP</text>
+<text x="491" y="598" class="dt mut" fill="currentColor">AS 65001 ↔ AS 65100</text>
+<path class="ar bgp" d="M834 562 V612" fill="none" marker-start="url(#ah-r)" marker-end="url(#ah-r)"/>
+<text x="842" y="583" class="dt strong" fill="currentColor">BGP</text>
+<text x="842" y="598" class="dt mut" fill="currentColor">AS 65010 ↔ AS 65200</text>
+<path class="ar" d="M1068 562 V612" fill="none" marker-start="url(#ah-n)" marker-end="url(#ah-n)"/>
+<text x="1076" y="590" class="dt mut" fill="currentColor">routing</text>
+<g class="node ext">
+<rect x="254" y="612" width="458" height="74" rx="3" fill="none"/>
+<text x="264" y="630" class="ti" fill="currentColor">Cisco Nexus 9336C core</text>
+<text x="264" y="648" class="dt" fill="currentColor">nx-core-a / nx-core-b</text>
+<text x="264" y="663" class="dt" fill="currentColor">BGP AS 65100, peers t0-shared (AS 65001)</text>
+</g>
+<g class="node ext">
+<rect x="722" y="612" width="224" height="74" rx="3" fill="none"/>
+<text x="732" y="630" class="ti" fill="currentColor">Secure Firewall 4125 FTD</text>
+<text x="732" y="648" class="dt" fill="currentColor">Cisco pair fw-fin-a / fw-fin-b</text>
+<text x="732" y="663" class="dt" fill="currentColor">AS 65200, managed by FMC</text>
+</g>
+<g class="node ext">
+<rect x="956" y="612" width="224" height="74" rx="3" fill="none"/>
+<text x="966" y="630" class="ti" fill="currentColor">Cisco ASA 5555-X</text>
+<text x="966" y="648" class="dt" fill="currentColor">asa-eu-01</text>
+<text x="966" y="663" class="dt" fill="currentColor">EU gateway</text>
+</g>
+<text x="20" y="722" class="band" fill="currentColor">IDENTITY · Active Directory forests, separate from the VCF domains</text>
+<g class="node ad">
+<rect x="20" y="730" width="370" height="54" rx="3" fill="none"/>
+<text x="30" y="748" class="ti mono" fill="currentColor">corp.nwg.lab</text>
+<text x="30" y="766" class="dt" fill="currentColor">corp and dev</text>
+</g>
+<g class="node ad">
+<rect x="415" y="730" width="370" height="54" rx="3" fill="none"/>
+<text x="425" y="748" class="ti mono" fill="currentColor">fin.nwg.local</text>
+<text x="425" y="766" class="dt" fill="currentColor">finance</text>
+</g>
+<g class="node ad">
+<rect x="810" y="730" width="370" height="54" rx="3" fill="none"/>
+<text x="820" y="748" class="ti mono" fill="currentColor">eu.nwg-retail.net</text>
+<text x="820" y="766" class="dt" fill="currentColor">EU retail</text>
+</g></svg>
+</div>
+</figure>
+
+<h2>Workloads by domain</h2>
+<div class="scroll"><table>
+<thead><tr><th>Domain</th><th>Workloads</th></tr></thead>
+<tbody>
+<tr><td>mgmt</td><td>SDDC Manager, vCenters, NSX Managers, VCF Operations, VCF Automation, NSX Edges.</td></tr>
+<tr><td>wld-corp</td><td>CRM (4 nginx web, 3 IIS app, SQL Always On AG-CRM x3); Intranet (Apache + SQL standalone); SupplyChain (Tomcat + Oracle 19c standalone on VLAN 120); eCommerce (web/app on the VPC); Squid proxies; 2 DCs.</td></tr>
+<tr><td>wld-dev</td><td>GitLab, build agents, SQL.</td></tr>
+<tr><td>wld-fin</td><td>Ledger (SQL FCI-LEDGER, 2 nodes, clustered VMDKs); Payments (SQL AG-PAYMENTS x3, IIS, nginx); Treasury (Oracle Fail Safe, 2 nodes); Reporting (Oracle standalone); proxy; 2 DCs.</td></tr>
+<tr><td>wld-eu</td><td>RetailShop (3 Apache web, 2 IIS app, SQL standalone); RetailERP (Oracle standalone); proxy; 2 DCs.</td></tr>
+</tbody></table></div>
+
+<h2>Fault scenarios you can switch to</h2>
+<p>Switch the lab with <code>python tools/org_sim/lab.py switch &lt;scenario&gt;</code>.</p>
+<h3 class="sub">Estate faults</h3>
+<ul class="faults">
+<li><code>dfw_blocks_crm_sql</code> A DFW rule blocks CRM web from its SQL tier.</li>
+<li><code>bgp_down_fin</code> BGP between t0-fin and the FTD pair is down.</li>
+<li><code>fci_colocated_host_down</code> A host carrying both Ledger FCI nodes goes down.</li>
+<li><code>shared_nsx_cert_expired</code> nsx-wld01 certificate expired; corp and dev both affected.</li>
+<li><code>vpc_ip_exhausted</code> ecom-private-app has no free IPs; eCommerce scale-out fails.</li>
+<li><code>ad_fin_down</code> fin.nwg.local domain controllers unavailable.</li>
+<li><code>eu_web_quarantined</code> RetailShop web VMs sit in the quarantine port group.</li>
+<li><code>scm_oracle_reject_plus_noise</code> A rule rejects Oracle (1521) clients, plus unrelated noise.</li>
+<li><code>proxy_t1_detached</code> t1-corp-dmz detached from the Tier-0; proxies lose internet.</li>
+<li><code>healthy_noisy</code> Nothing is broken; the estate just produces noise.</li>
+</ul>
+<h3 class="sub">Orchestrator scenarios</h3>
+<ul class="faults">
+<li><code>orch_default</code> Orchestrator 9.1.1 healthy; the Mail plug-in is older than 9.1.0.0401 (KB 447131).</li>
+<li><code>orch_9_1_0</code> Orchestrator 9.1.0: the MCP warns about the known issues fixed in 9.1.1.</li>
+<li><code>orch_role_conflict</code> The service account has Workflow Designer and Viewer, so it is read-only (KB 438403).</li>
+<li><code>orch_vc_unusable</code> The vc-corp01 connection is unusable after a vCenter reboot (KB 452127).</li>
+<li><code>orch_concurrent_edit</code> A colleague edits "Disk usage report" between your dry run and your save.</li>
+</ul>
+
+<h2>Request flow</h2>
+<p>Every call is identified, filtered, schema-checked and policy-checked. Reads go straight to the appliances; writes are stopped at a human approver first.</p>
+<ul class="legend">
+<li><span class="sw" style="border-color:var(--fg)"></span> Common steps (dark border)</li>
+<li><span class="sw"></span> Read path (blue border)</li>
+<li><span class="sw w"></span> Write and approval path</li>
+</ul>
+<figure>
+<figcaption><b>Reads pass checks and go to the appliances; writes pause at a human approver and are re-validated before they execute.</b></figcaption>
+<div class="scroll" tabindex="0" role="region" aria-label="Request flow diagram, scrolls horizontally on narrow screens">
+<svg class="dg d2" viewBox="0 0 1180 700" width="100%" role="img" aria-label="Reads go straight through checks to the appliances; writes stop at a human approver and are re-validated before they execute." xmlns="http://www.w3.org/2000/svg"><defs><marker id="ah-n" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="mk-n" d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker><marker id="ah-r" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="mk-r" d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker><marker id="ah-w" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path class="mk-w" d="M0 0 L10 5 L0 10 z" fill="currentColor"/></marker></defs><g class="lane "><rect x="0" y="10" width="1180" height="120" fill="none"/>
+<text x="14" y="32" class="lane-t" fill="currentColor">CLIENT</text>
+</g>
+<g class="lane "><rect x="0" y="130" width="1180" height="328" fill="none"/>
+<text x="14" y="152" class="lane-t" fill="currentColor">MCP SERVER</text>
+</g>
+<g class="lane lane-h"><rect x="0" y="458" width="1180" height="120" fill="none"/>
+<text x="14" y="480" class="lane-t" fill="currentColor">HUMAN APPROVER</text>
+</g>
+<g class="lane "><rect x="0" y="578" width="1180" height="120" fill="none"/>
+<text x="14" y="600" class="lane-t" fill="currentColor">VCF APPLIANCES</text>
+<text x="14" y="616" class="dt mut" fill="currentColor">(simulated)</text>
+</g>
+<text x="14" y="572" class="dt strong" fill="currentColor">trust boundary</text>
+<path class="tb" d="M0 578 H1180" fill="none"/>
+<g class="node st n "><rect x="130" y="32" width="156" height="76" rx="3" fill="none"/>
+<circle class="bd" cx="147" cy="50" r="11" fill="none"/>
+<text class="bn" x="147" y="54" text-anchor="middle" fill="currentColor">1</text>
+<text x="164" y="54" class="ti" fill="currentColor">Client</text>
+<text x="140" y="74" class="dt" fill="currentColor">Claude Code or LM Studio</text>
+<text x="140" y="89" class="dt" fill="currentColor">+ local model</text>
+</g>
+<g class="node st n "><rect x="320" y="32" width="156" height="76" rx="3" fill="none"/>
+<circle class="bd" cx="337" cy="50" r="11" fill="none"/>
+<text class="bn" x="337" y="54" text-anchor="middle" fill="currentColor">4</text>
+<text x="354" y="54" class="ti" fill="currentColor">tools/call</text>
+<text x="330" y="74" class="dt" fill="currentColor">client picks one of</text>
+<text x="330" y="89" class="dt" fill="currentColor">the visible tools</text>
+</g>
+<g class="node st w "><rect x="890" y="32" width="156" height="76" rx="3" fill="none"/>
+<circle class="bd" cx="907" cy="50" r="12" fill="none"/>
+<text class="bn" x="907" y="54" text-anchor="middle" fill="currentColor">6b</text>
+<text x="924" y="54" class="ti" fill="currentColor">Call again</text>
+<text x="900" y="74" class="dt" fill="currentColor">plan_id, approval_id,</text>
+<text x="900" y="89" class="dt" fill="currentColor">single-use nonce</text>
+</g>
+<g class="node st n "><rect x="130" y="150" width="156" height="76" rx="3" fill="none"/>
+<circle class="bd" cx="147" cy="168" r="11" fill="none"/>
+<text class="bn" x="147" y="172" text-anchor="middle" fill="currentColor">2</text>
+<text x="164" y="172" class="ti" fill="currentColor">Identity</text>
+<text x="140" y="192" class="dt" fill="currentColor">bearer token validated</text>
+<text x="140" y="207" class="dt" fill="currentColor">role: VCF_VIEWER,</text>
+<text x="140" y="222" class="dt" fill="currentColor">AUTOMATION_OPERATOR</text>
+</g>
+<g class="node st n "><rect x="320" y="150" width="156" height="76" rx="3" fill="none"/>
+<circle class="bd" cx="337" cy="168" r="11" fill="none"/>
+<text class="bn" x="337" y="172" text-anchor="middle" fill="currentColor">3</text>
+<text x="354" y="172" class="ti" fill="currentColor">Tool filter</text>
+<text x="330" y="192" class="dt" fill="currentColor">role, operating mode,</text>
+<text x="330" y="207" class="dt" fill="currentColor">safety profile, skill</text>
+<text x="330" y="222" class="dt" fill="currentColor">e.g. 7 tools on-call</text>
+</g>
+<g class="node st n "><rect x="510" y="150" width="156" height="76" rx="3" fill="none"/>
+<circle class="bd" cx="527" cy="168" r="11" fill="none"/>
+<text class="bn" x="527" y="172" text-anchor="middle" fill="currentColor">5</text>
+<text x="544" y="172" class="ti" fill="currentColor">Checks</text>
+<text x="520" y="192" class="dt" fill="currentColor">Schema: types, lengths</text>
+<text x="520" y="207" class="dt" fill="currentColor">then Policy: roles,</text>
+<text x="520" y="222" class="dt" fill="currentColor">capability, risk class</text>
+</g>
+<g class="node st w "><rect x="700" y="150" width="156" height="76" rx="3" fill="none"/>
+<circle class="bd" cx="717" cy="168" r="12" fill="none"/>
+<text class="bn" x="717" y="172" text-anchor="middle" fill="currentColor">6b</text>
+<text x="734" y="172" class="ti" fill="currentColor">Write: dry run</text>
+<text x="710" y="192" class="dt" fill="currentColor">dry_run=true returns a</text>
+<text x="710" y="207" class="dt" fill="currentColor">plan: plan_id, diff,</text>
+<text x="710" y="222" class="dt" fill="currentColor">PENDING_APPROVAL</text>
+</g>
+<g class="node st w "><rect x="890" y="150" width="156" height="76" rx="3" fill="none"/>
+<circle class="bd" cx="907" cy="168" r="12" fill="none"/>
+<text class="bn" x="907" y="172" text-anchor="middle" fill="currentColor">6b</text>
+<text x="924" y="172" class="ti" fill="currentColor">Re-validate</text>
+<text x="900" y="192" class="dt" fill="currentColor">same arguments,</text>
+<text x="900" y="207" class="dt" fill="currentColor">permission epoch,</text>
+<text x="900" y="222" class="dt" fill="currentColor">nonce; then execute</text>
+</g>
+<g class="node st r "><rect x="510" y="256" width="156" height="76" rx="3" fill="none"/>
+<circle class="bd" cx="527" cy="274" r="12" fill="none"/>
+<text class="bn" x="527" y="278" text-anchor="middle" fill="currentColor">6a</text>
+<text x="544" y="278" class="ti" fill="currentColor">Read path</text>
+<text x="520" y="298" class="dt" fill="currentColor">Provider, credential</text>
+<text x="520" y="313" class="dt" fill="currentColor">broker (secret ref),</text>
+<text x="520" y="328" class="dt" fill="currentColor">SSRF guard + TLS</text>
+</g>
+<g class="node note"><rect x="320" y="256" width="156" height="52" rx="3" fill="none"/><text x="330" y="276" class="dt" fill="currentColor">vcf_find_tool helps</text><text x="330" y="292" class="dt" fill="currentColor">small models pick</text></g>
+<g class="node st r "><rect x="320" y="362" width="156" height="76" rx="3" fill="none"/>
+<circle class="bd" cx="337" cy="380" r="12" fill="none"/>
+<text class="bn" x="337" y="384" text-anchor="middle" fill="currentColor">6a</text>
+<text x="354" y="384" class="ti" fill="currentColor">Evidence</text>
+<text x="330" y="404" class="dt" fill="currentColor">correlation, then</text>
+<text x="330" y="419" class="dt" fill="currentColor">ranked findings</text>
+</g>
+<g class="node st n "><rect x="130" y="362" width="156" height="76" rx="3" fill="none"/>
+<circle class="bd" cx="147" cy="380" r="11" fill="none"/>
+<text class="bn" x="147" y="384" text-anchor="middle" fill="currentColor">7</text>
+<text x="164" y="384" class="ti" fill="currentColor">Response path</text>
+<text x="140" y="404" class="dt" fill="currentColor">output sanitizer redacts</text>
+<text x="140" y="419" class="dt" fill="currentColor">secrets, flags untrusted</text>
+<text x="140" y="434" class="dt" fill="currentColor">text; audit chain record</text>
+</g>
+<g class="node st w hum"><rect x="700" y="480" width="156" height="76" rx="3" fill="none"/><circle class="bd" cx="717" cy="498" r="12" fill="none"/><text class="bn" x="717" y="502" text-anchor="middle" fill="currentColor">6b</text><text x="734" y="502" class="ti" fill="currentColor">Human approver</text><text x="710" y="524" class="dt mono" fill="currentColor">vcf-enterprise-mcp</text><text x="710" y="539" class="dt mono" fill="currentColor">plans approve &lt;id&gt;</text></g>
+<g class="node ext"><rect x="130" y="598" width="1026" height="86" rx="3" fill="none"/><text x="146" y="618" class="ti" fill="currentColor">Simulated appliances reached over HTTPS</text></g>
+<g class="chip"><rect x="146" y="636" width="190" height="32" rx="3" fill="none"/><text x="241" y="656" class="dt" text-anchor="middle" fill="currentColor">SDDC Manager</text></g>
+<g class="chip"><rect x="346" y="636" width="190" height="32" rx="3" fill="none"/><text x="441" y="656" class="dt" text-anchor="middle" fill="currentColor">every vCenter</text></g>
+<g class="chip"><rect x="546" y="636" width="190" height="32" rx="3" fill="none"/><text x="641" y="656" class="dt" text-anchor="middle" fill="currentColor">NSX Manager</text></g>
+<g class="chip"><rect x="746" y="636" width="190" height="32" rx="3" fill="none"/><text x="841" y="656" class="dt" text-anchor="middle" fill="currentColor">VCF Operations</text></g>
+<g class="chip"><rect x="946" y="636" width="190" height="32" rx="3" fill="none"/><text x="1041" y="656" class="dt" text-anchor="middle" fill="currentColor">VCF Automation / Orch.</text></g>
+<path class="ar a-n" d="M208 108 V150" fill="none" marker-end="url(#ah-n)"/>
+<text x="216" y="134" class="al" fill="currentColor">tools/list, stdio JSON-RPC</text>
+<path class="ar a-n" d="M286 188 H320" fill="none" marker-end="url(#ah-n)"/>
+<text x="303" y="182" class="al" text-anchor="middle" fill="currentColor">role</text>
+<path class="ar a-n" d="M398 150 V108" fill="none" marker-end="url(#ah-n)"/>
+<text x="406" y="134" class="al" fill="currentColor">visible tools</text>
+<path class="ar a-n" d="M476 70 H493 V188 H508" fill="none" marker-end="url(#ah-n)"/>
+<text x="500" y="62" class="al" fill="currentColor">tools/call</text>
+<path class="ar a-r" d="M588 226 V256" fill="none" marker-end="url(#ah-r)"/>
+<text x="596" y="245" class="al" fill="currentColor">read</text>
+<path class="ar a-w" d="M666 188 H700" fill="none" marker-end="url(#ah-w)"/>
+<text x="683" y="182" class="al" text-anchor="middle" fill="currentColor">write</text>
+<path class="ar a-w" d="M778 226 V480" fill="none" marker-end="url(#ah-w)"/>
+<text x="770" y="395" class="al" text-anchor="end" fill="currentColor">plan_id,</text>
+<text x="770" y="409" class="al" text-anchor="end" fill="currentColor">PENDING_APPROVAL</text>
+<path class="ar a-r" d="M588 332 V598" fill="none" marker-end="url(#ah-r)"/>
+<text x="596" y="470" class="al" fill="currentColor">HTTPS (read)</text>
+<path class="ar a-r" d="M398 598 V438" fill="none" marker-end="url(#ah-r)"/>
+<text x="406" y="520" class="al" fill="currentColor">evidence</text>
+<path class="ar a-n" d="M320 400 H286" fill="none" marker-end="url(#ah-n)"/>
+<text x="303" y="394" class="al" text-anchor="middle" fill="currentColor">ranked</text>
+<path class="ar a-n" d="M130 400 H120 V70 H128" fill="none" marker-end="url(#ah-n)"/>
+<text x="124" y="352" class="al" fill="currentColor">result to client</text>
+<path class="ar a-w" d="M208 598 V438" fill="none" marker-end="url(#ah-w)"/>
+<text x="216" y="560" class="al" fill="currentColor">change result</text>
+<path class="ar a-w" d="M856 518 H873 V70 H888" fill="none" marker-end="url(#ah-w)"/>
+<text x="881" y="500" class="al" fill="currentColor">signed approval_id</text>
+<text x="881" y="514" class="al" fill="currentColor">+ single-use nonce</text>
+<path class="ar a-w" d="M968 108 V150" fill="none" marker-end="url(#ah-w)"/>
+<text x="976" y="124" class="al" fill="currentColor">plan_id, approval_id,</text>
+<text x="976" y="138" class="al" fill="currentColor">+ nonce</text>
+<path class="ar a-w" d="M1020 226 V598" fill="none" marker-end="url(#ah-w)"/>
+<text x="1028" y="440" class="al" fill="currentColor">execute</text></svg>
+</div>
+</figure>
+<p>The dashed line is the trust boundary: nothing past it is reached without the credential broker, the SSRF guard and TLS verification. Approval is run by a person with <code>vcf-mcp plans approve &lt;plan_id&gt;</code>, which signs an approval_id and a single-use nonce.</p>
+</div>

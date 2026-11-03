@@ -1,0 +1,392 @@
+environment:
+  name: Corporate-Production-SDDC-Grid
+  vcf_version: 9.1.0.0
+  build_number: '24892011'
+  organization: Enterprise IT Cloud Services
+  simulated_latency_ms: 10
+  enforce_strict_auth: true
+sddc_manager:
+  id: sddc-mgr-prod
+  fqdn: sddc-manager.corp.local
+  ip_address: 192.168.10.2
+  credentials:
+    admin_user: administrator@vsphere.local
+    admin_pass: VMware1!MockPassword
+    role: VCF_SUPER_ADMIN
+licensing:
+- id: lic-vcf-core
+  product_name: VMware Cloud Foundation 9 Core
+  license_key: VCF91-IMPORTED-KEY-XXXXX
+  capacity: 512
+  units: CORES
+  used: 256
+network_pools:
+- id: netpool-prod-01
+  name: Production-Infra-Network-Pool
+  subnets:
+  - network_type: VSAN
+    cidr: 192.168.100.0/24
+    gateway: 192.168.100.1
+    vlan_id: 100
+    ip_pool:
+      start: 192.168.100.10
+      end: 192.168.100.100
+  - network_type: GENEVE
+    cidr: 192.168.101.0/24
+    gateway: 192.168.101.1
+    vlan_id: 101
+    ip_pool:
+      start: 192.168.101.10
+      end: 192.168.101.100
+tenant_organizations: []
+management_domain:
+  id: domain-mgmt-01
+  name: sddc-mgmt-domain
+  domain_type: MANAGEMENT
+  tenant_organization: null
+  vcenter:
+    id: vc-mgmt-01
+    fqdn: vcenter-mgmt.corp.local
+    ip_address: 192.168.10.10
+  nsx_manager:
+    id: nsx-mgmt-01
+    vip_fqdn: nsx-mgmt.corp.local
+    ip_address: 192.168.10.11
+  srm_instance:
+    id: srm-sddc-mgmt-domain
+    fqdn: srm-sddc-mgmt-domain.corp.local
+    site_name: Site-sddc-mgmt-domain
+  clusters:
+  - &id001
+    id: cluster-mgmt-01
+    name: mgmt-cl01
+    primary_datastore_name: vsan-mgmt-ds01
+    vsphere_supervisor:
+      cluster_id: domain-c8
+      config_status: RUNNING
+      kubernetes_status: READY
+      api_endpoint: https://192.168.20.250:6443
+      kubernetes_version: v1.30.2+vmware.1
+      master_nodes:
+      - 192.168.20.251
+      - 192.168.20.252
+      vm_service_classes:
+      - name: best-effort-small
+        cpu: 2
+        memory_mb: 4096
+      - name: guaranteed-large
+        cpu: 8
+        memory_mb: 32768
+      - name: ai-gpu-quad
+        cpu: 32
+        memory_mb: 131072
+        vgpu_profile: grid_a100-40c
+      namespaces:
+      - name: tkg-system
+        description: Tanzu Core Infrastructure
+        storage_limit_gb: 1000
+      - name: prod-apps
+        description: Production Workloads
+        storage_limit_gb: 5000
+      - name: ai-models
+        description: Private AI Inference Services
+        storage_limit_gb: 10000
+    hosts:
+    - id: host-mgmt-01
+      fqdn: esx-mgmt-01.corp.local
+      ip: 192.168.10.101
+      cores: 64
+      memory_gb: 512
+      storage_tb: 14
+      status: ASSIGNED
+    - id: host-mgmt-02
+      fqdn: esx-mgmt-02.corp.local
+      ip: 192.168.10.102
+      cores: 64
+      memory_gb: 512
+      storage_tb: 14
+      status: ASSIGNED
+    - id: host-mgmt-03
+      fqdn: esx-mgmt-03.corp.local
+      ip: 192.168.10.103
+      cores: 64
+      memory_gb: 512
+      storage_tb: 14
+      status: ASSIGNED
+    - id: host-mgmt-04
+      fqdn: esx-mgmt-04.corp.local
+      ip: 192.168.10.104
+      cores: 64
+      memory_gb: 512
+      storage_tb: 14
+      status: ASSIGNED
+  cluster: *id001
+workload_domains:
+- id: domain-wld01
+  name: sddc-workload-domain-01
+  domain_type: VI
+  tenant_organization: null
+  vcenter:
+    id: vc-wld01
+    fqdn: vcenter-wld01.corp.local
+    ip_address: 192.168.20.10
+  nsx_manager:
+    id: nsx-wld01
+    vip_fqdn: nsx-wld01.corp.local
+    ip_address: 192.168.20.11
+  srm_instance:
+    id: srm-sddc-workload-domain-01
+    fqdn: srm-sddc-workload-domain-01.corp.local
+    site_name: Site-sddc-workload-domain-01
+  clusters:
+  - id: cluster-wld01
+    name: wld01-cl01
+    primary_datastore_name: vsan-wld01-ds01
+    vsphere_supervisor:
+      cluster_id: domain-c8
+      config_status: RUNNING
+      kubernetes_status: READY
+      api_endpoint: https://192.168.20.250:6443
+      kubernetes_version: v1.30.2+vmware.1
+      master_nodes:
+      - 192.168.20.251
+      - 192.168.20.252
+      vm_service_classes:
+      - name: best-effort-small
+        cpu: 2
+        memory_mb: 4096
+      - name: guaranteed-large
+        cpu: 8
+        memory_mb: 32768
+      - name: ai-gpu-quad
+        cpu: 32
+        memory_mb: 131072
+        vgpu_profile: grid_a100-40c
+      namespaces:
+      - name: tkg-system
+        description: Tanzu Core Infrastructure
+        storage_limit_gb: 1000
+      - name: prod-apps
+        description: Production Workloads
+        storage_limit_gb: 5000
+      - name: ai-models
+        description: Private AI Inference Services
+        storage_limit_gb: 10000
+    hosts:
+    - id: host-wld-01
+      fqdn: esx-wld-01.corp.local
+      ip: 192.168.20.101
+      cores: 128
+      memory_gb: 1024
+      storage_tb: 14
+      status: ASSIGNED
+    - id: host-wld-02
+      fqdn: esx-wld-02.corp.local
+      ip: 192.168.20.102
+      cores: 128
+      memory_gb: 1024
+      storage_tb: 14
+      status: ASSIGNED
+    - id: host-wld-03
+      fqdn: esx-wld-03.corp.local
+      ip: 192.168.20.103
+      cores: 128
+      memory_gb: 1024
+      storage_tb: 14
+      status: ASSIGNED
+    - id: host-wld-04
+      fqdn: esx-wld-04.corp.local
+      ip: 192.168.20.104
+      cores: 128
+      memory_gb: 1024
+      storage_tb: 14
+      status: ASSIGNED
+  edge_cluster:
+    id: edge-cl-sddc-workload-domain-01
+    name: sddc-workload-domain-01-edge-cl01
+    nodes:
+    - name: edge-node-sddc-workload-domain-01-01
+      mgmt_ip: 192.168.20.21
+      tep_ip: 192.168.101.21
+    - name: edge-node-sddc-workload-domain-01-02
+      mgmt_ip: 192.168.20.22
+      tep_ip: 192.168.101.22
+nsx_tier0s:
+- id: t0-production
+  display_name: Tier0-Production-Gateway
+  ha_mode: ACTIVE_ACTIVE
+  bgp_asn: 65001
+nsx_tier1s:
+- id: t1-production
+  display_name: Tier1-Production-Gateway
+  tier0_path: /infra/tier-0s/t0-production
+nsx_segments:
+- id: seg-wld01-apps
+  display_name: Segment-Workload-Apps
+  connectivity_path: /infra/tier-1s/t1-production
+  subnets:
+  - gateway_address: 192.168.110.1/24
+- id: seg-wld01-ai
+  display_name: Segment-Workload-AI
+  connectivity_path: /infra/tier-1s/t1-production
+  subnets:
+  - gateway_address: 192.168.120.1/24
+nsx_groups: []
+nsx_security_policies: []
+tenant_vms:
+- id: vm-prod-crm-01
+  name: prod-crm-app01
+  power_state: POWERED_ON
+  cpu_count: 4
+  memory_size_MiB: 16384
+  guest_os: Red Hat Enterprise Linux 9 (64-bit)
+  guest_hostname: crm-app01.corp.local
+  ip_address: 192.168.110.10
+  mac_address: 00:50:56:a1:b2:c1
+  datastore: vsan-wld01-ds01
+  folder: Production-Workloads
+  resource_pool: Compute-ResourcePool
+  hardware_version: vmx-21
+  tenant_org: Org-Finance
+  workload_domain_id: domain-wld01
+  disks:
+  - id: disk-2001
+    label: Hard disk 1 (OS)
+    capacity_bytes: 107374182400
+    capacity_gb: 100
+    datastore: vsan-wld01-ds01
+    backing_file: '[vsan-wld01-ds01] prod-crm-app01/prod-crm-app01.vmdk'
+    thin_provisioned: true
+    storage_policy: policy-vsan-esa-default
+  - id: disk-2002
+    label: Hard disk 2 (App Data)
+    capacity_bytes: 536870912000
+    capacity_gb: 500
+    datastore: vsan-wld01-ds01
+    backing_file: '[vsan-wld01-ds01] prod-crm-app01/prod-crm-app01_1.vmdk'
+    thin_provisioned: true
+    storage_policy: policy-vsan-esa-default
+  filesystems:
+  - mount_point: /
+    filesystem_type: ext4
+    capacity_bytes: 107374182400
+    free_bytes: 64424509440
+    used_bytes: 42949672960
+    percent_free: 60.0
+  - mount_point: /var/app/crm
+    filesystem_type: xfs
+    capacity_bytes: 536870912000
+    free_bytes: 322122547200
+    used_bytes: 214748364800
+    percent_free: 60.0
+  nics:
+  - nic_id: nic-4001
+    label: Network adapter 1
+    mac_address: 00:50:56:a1:b2:c1
+    network: seg-wld01-apps
+    ip_addresses:
+    - 192.168.110.10
+    connected: true
+  tags:
+  - Tier-1
+  - Production
+  - CRM
+  - PCI-DSS
+- id: vm-prod-db-01
+  name: prod-db-oracle01
+  power_state: POWERED_ON
+  cpu_count: 8
+  memory_size_MiB: 65536
+  guest_os: Oracle Linux 9 (64-bit)
+  guest_hostname: db-oracle01.corp.local
+  ip_address: 192.168.110.20
+  mac_address: 00:50:56:a1:b2:c2
+  datastore: vsan-wld01-ds01
+  folder: Production-Databases
+  resource_pool: Compute-ResourcePool
+  hardware_version: vmx-21
+  tenant_org: Org-Finance
+  workload_domain_id: domain-wld01
+  disks:
+  - id: disk-3001
+    label: Hard disk 1 (OS)
+    capacity_bytes: 107374182400
+    capacity_gb: 100
+    datastore: vsan-wld01-ds01
+    backing_file: '[vsan-wld01-ds01] prod-db-oracle01/prod-db-oracle01.vmdk'
+    thin_provisioned: true
+    storage_policy: policy-vsan-esa-default
+  - id: disk-3002
+    label: Hard disk 2 (Oracle Datafiles ASM)
+    capacity_bytes: 2199023255552
+    capacity_gb: 2048
+    datastore: fc-san-tier1-ds01
+    backing_file: '[fc-san-tier1-ds01] prod-db-oracle01/prod-db-oracle01_1.vmdk'
+    thin_provisioned: false
+    storage_policy: policy-fc-tier1-gold
+  filesystems:
+  - mount_point: /
+    filesystem_type: ext4
+    capacity_bytes: 107374182400
+    free_bytes: 75161927680
+    used_bytes: 32212254720
+    percent_free: 70.0
+  - mount_point: /u01/app/oracle
+    filesystem_type: xfs
+    capacity_bytes: 2199023255552
+    free_bytes: 1099511627776
+    used_bytes: 1099511627776
+    percent_free: 50.0
+  nics:
+  - nic_id: nic-4002
+    label: Network adapter 1
+    mac_address: 00:50:56:a1:b2:c2
+    network: seg-wld01-apps
+    ip_addresses:
+    - 192.168.110.20
+    connected: true
+  tags:
+  - Tier-0
+  - Database
+  - Oracle
+  - Encrypted
+vr_profiles: []
+vr_replications: []
+protection_and_recovery:
+  pairings:
+  - id: pair-mgmt-wld01
+    pairing_name: Protected-Mgmt-to-Recovery-WLD01
+    local_site:
+      name: Site-Production-Mgmt
+      srm_host: srm-mgmt.corp.local
+    peer_site:
+      name: Site-Production-WLD01
+      srm_host: srm-wld01.corp.local
+    status: CONNECTED
+    network_mappings:
+    - source_network: seg-mgmt-infra
+      target_network: seg-wld01-apps
+    protection_groups:
+    - id: pg-tier1-core
+      name: PG-Tier1-Core-Services
+      type: VSPHERE_REPLICATION
+      rpo_minutes: 5
+      protected_vms:
+      - id: vm-prod-crm-01
+        name: prod-crm-app01
+        status: PROTECTED
+        consistency: CONSISTENT
+      - id: vm-prod-db-01
+        name: prod-db-oracle01
+        status: PROTECTED
+        consistency: CONSISTENT
+    recovery_plans:
+    - id: rp-tier1-failover
+      name: RP-Tier1-Failover-Plan
+      protection_groups:
+      - pg-tier1-core
+      status: READY
+      last_test_result: SUCCESSFUL
+  network_mappings: []
+  protection_groups: []
+  recovery_plans: []

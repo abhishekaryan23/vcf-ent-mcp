@@ -1,0 +1,101 @@
+{
+  "schema_version": 1,
+  "diagram_type": "sequence",
+  "meta": {
+    "title": "MCP Tasks Extension & Asynchronous Protocol",
+    "subtitle": "Cryptographically unguessable task IDs, SSE push notifications, and cancellation compensation",
+    "output": "vcf_enterprise_mcp/docs/interactive_architecture/async_tasks.html",
+    "viewBox": [1040, 720],
+    "column_fit": "spread",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "opt-in-and-dispatch",
+        "label": "Opt-In & Materialization",
+        "focus": ["client", "engine", "tstore", "worker"],
+        "note": "Header opt-in triggers unguessable task ID creation and background execution."
+      },
+      {
+        "id": "sse-and-polling",
+        "label": "SSE Push & Status Poll",
+        "focus": ["worker", "sse", "client", "engine", "tstore"],
+        "note": "Real-time SSE event stream and explicit tasks/get polling without enumeration."
+      },
+      {
+        "id": "cancellation",
+        "label": "Cancellation & Compensation",
+        "focus": ["client", "engine", "worker", "tstore"],
+        "note": "Graceful cancellation triggers deterministic rollback of compensable steps."
+      }
+    ]
+  },
+  "participants": [
+    { "id": "client", "type": "external", "label": "AI Agent", "sublabel": "untrusted caller" },
+    { "id": "engine", "type": "frontend", "label": "MCP Engine", "sublabel": "JSON-RPC 2.0" },
+    { "id": "tstore", "type": "database", "label": "Task Store", "sublabel": "unguessable IDs" },
+    { "id": "worker", "type": "backend", "label": "Async Worker", "sublabel": "background pool" },
+    { "id": "sse", "type": "messagebus", "label": "Event Stream", "sublabel": "SSE push channel" },
+    { "id": "vcf", "type": "cloud", "label": "VCF Fleet", "sublabel": "SDDC & vCenter" }
+  ],
+  "segments": [
+    { "from": 150, "to": 220, "label": "1. Opt-In & Materialization" },
+    { "from": 230, "to": 360, "label": "2. Async Execution & SSE Push" },
+    { "from": 370, "to": 480, "label": "3. Direct Poll & Monitoring" },
+    { "from": 495, "to": 615, "label": "4. Cancellation & Compensation" }
+  ],
+  "messages": [
+    { "id": "m1", "from": "client", "to": "engine", "y": 165, "label": "tools/call (upgrade, tasks opt-in)", "variant": "emphasis" },
+    { "id": "m2", "from": "engine", "to": "tstore", "y": 200, "label": "create_task (owner, unguessable_id)", "variant": "default" },
+    { "id": "m3", "from": "engine", "to": "client", "y": 235, "label": "200 OK (taskId: task-861f...)", "variant": "return" },
+    { "id": "m4", "from": "engine", "to": "worker", "y": 270, "label": "dispatch_background (taskId)", "variant": "emphasis" },
+    { "id": "m5", "from": "worker", "to": "vcf", "y": 305, "label": "execute_step (validate manifest)", "variant": "default" },
+    { "id": "m6", "from": "worker", "to": "sse", "y": 340, "label": "publish (notifications/tasks/progress)", "variant": "dashed" },
+    { "id": "m7", "from": "sse", "to": "client", "y": 375, "label": "SSE push: progress 33%", "variant": "return" },
+    { "id": "m8", "from": "client", "to": "engine", "y": 405, "label": "tasks/get (taskId: task-861f...)", "variant": "emphasis" },
+    { "id": "m9", "from": "engine", "to": "tstore", "y": 435, "label": "query_by_id_and_owner()", "variant": "default" },
+    { "id": "m10", "from": "engine", "to": "client", "y": 465, "label": "task details (status: RUNNING)", "variant": "return" },
+    { "id": "m11", "from": "client", "to": "engine", "y": 515, "label": "tasks/cancel (taskId: task-861f...)", "variant": "security" },
+    { "id": "m12", "from": "engine", "to": "worker", "y": 550, "label": "request_compensation (taskId)", "variant": "security" },
+    { "id": "m13", "from": "worker", "to": "tstore", "y": 585, "label": "set_state (COMPENSATED)", "variant": "default" }
+  ],
+  "activations": [
+    { "participant": "engine", "from": 160, "to": 240, "type": "frontend" },
+    { "participant": "tstore", "from": 195, "to": 225, "type": "database" },
+    { "participant": "worker", "from": 265, "to": 355, "type": "backend" },
+    { "participant": "sse", "from": 335, "to": 380, "type": "messagebus" },
+    { "participant": "engine", "from": 400, "to": 470, "type": "frontend" },
+    { "participant": "tstore", "from": 430, "to": 450, "type": "database" },
+    { "participant": "engine", "from": 510, "to": 560, "type": "frontend" },
+    { "participant": "worker", "from": 545, "to": 595, "type": "backend" }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "Tasks Protocol Opt-In",
+      "items": [
+        "Task handles materialize only when client advertises io.modelcontextprotocol/tasks",
+        "Calls without opt-in execute synchronously to prevent polling overhead",
+        "tasks/list is removed per 2026-07-28 spec to block enumeration"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Owner-Scoped Privacy",
+      "items": [
+        "tasks/get and tasks/cancel strictly enforce caller tenant and principal identity",
+        "Task IDs use 24 bytes of high-entropy cryptographic randomness",
+        "Cross-tenant task inspection returns -32601 or TaskNotFoundException"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "SSE Push & Compensation",
+      "items": [
+        "Subscriptions/listen delivers real-time notifications/tasks/progress updates",
+        "tasks/cancel triggers deterministic saga rollback for compensable steps",
+        "Terminal cancellation states are permanently anchored in the audit log"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,93 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "Enterprise VCF MCP Control Plane - Low Level Design (LLD)",
+    "subtitle": "Modular separation, strict unidirectional layering, and subsystem contracts",
+    "output": "vcf_enterprise_mcp/docs/interactive_architecture/lld_architecture.html",
+    "visual_preset": "signal-flow",
+    "animation": "trace",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "ingress-and-identity",
+        "label": "Ingress & Identity Layer",
+        "focus": ["proto", "headers", "idp_val", "sanitizer"],
+        "note": "MCP 2026-07-28 protocol edge, header/body validation, and prompt injection defusal."
+      },
+      {
+        "id": "governance-and-routing",
+        "label": "Governance & Tool Router",
+        "focus": ["sanitizer", "pdp_pep", "router_mod", "wf_engine"],
+        "note": "Policy Decision Point (PDP) capability intersection and 5-stage identity-aware router."
+      },
+      {
+        "id": "execution-and-durability",
+        "label": "Execution, Leases & Audit",
+        "focus": ["wf_engine", "lease_mgr", "plan_mgr", "dstore_mod", "platform_mod", "broker_audit"],
+        "note": "Crash-resumable workflows, distributed leases with fencing tokens, and SHA-256 audit chaining."
+      }
+    ]
+  },
+  "components": [
+    { "id": "proto", "type": "frontend", "label": "core.protocol", "sublabel": "MCP Protocol Engine", "pos": [40, 110], "size": [140, 60], "tag": "Layer 1" },
+    { "id": "headers", "type": "security", "label": "core.headers", "sublabel": "TraceContext & W3C", "pos": [40, 260], "size": [140, 60], "tag": "Layer 1" },
+    { "id": "idp_val", "type": "security", "label": "auth.idp", "sublabel": "RFC 8707 Validator", "pos": [40, 410], "size": [140, 60], "tag": "Layer 2" },
+    { "id": "sanitizer", "type": "security", "label": "auth.untrusted", "sublabel": "Prompt Defusal", "pos": [270, 110], "size": [140, 60], "tag": "Layer 2" },
+    { "id": "pdp_pep", "type": "security", "label": "policy.engine", "sublabel": "PDP / PEP Overlay", "pos": [270, 260], "size": [140, 60], "tag": "Layer 3" },
+    { "id": "router_mod", "type": "backend", "label": "router.identity", "sublabel": "5-Stage Tool Router", "pos": [270, 410], "size": [140, 60], "tag": "Layer 4" },
+    { "id": "plan_mgr", "type": "backend", "label": "workflows.plans", "sublabel": "TOCTOU Revisions", "pos": [500, 110], "size": [140, 60], "tag": "Layer 5" },
+    { "id": "lease_mgr", "type": "backend", "label": "state.leases", "sublabel": "Fencing Tokens", "pos": [500, 260], "size": [140, 60], "tag": "Layer 5" },
+    { "id": "wf_engine", "type": "backend", "label": "workflows.engine", "sublabel": "Resumable Engine", "pos": [500, 410], "size": [140, 60], "tag": "Layer 5" },
+    { "id": "platform_mod", "type": "cloud", "label": "adapter.platform", "sublabel": "Provider Registry", "pos": [730, 110], "size": [140, 60], "tag": "Layer 6" },
+    { "id": "broker_audit", "type": "security", "label": "auth.broker", "sublabel": "Vault & SHA-256 Audit", "pos": [730, 260], "size": [140, 60], "tag": "Layer 6" },
+    { "id": "dstore_mod", "type": "database", "label": "state.store", "sublabel": "SQLite WAL / Postgres", "pos": [730, 410], "size": [140, 60], "tag": "Layer 5" }
+  ],
+  "boundaries": [
+    { "kind": "region", "label": "Presentation & Identity Layers", "wraps": ["proto", "headers", "idp_val", "sanitizer"] },
+    { "kind": "region", "label": "Core Control Plane & Governance", "wraps": ["pdp_pep", "router_mod", "plan_mgr", "lease_mgr", "wf_engine"] },
+    { "kind": "region", "label": "Persistence & Infrastructure Adapters", "wraps": ["platform_mod", "broker_audit", "dstore_mod"] }
+  ],
+  "connections": [
+    { "id": "proto-headers", "from": "proto", "to": "headers", "variant": "security", "route": "straight" },
+    { "id": "headers-idp", "from": "headers", "to": "idp_val", "variant": "security", "route": "straight" },
+    { "id": "proto-sanitizer", "from": "proto", "to": "sanitizer", "variant": "emphasis", "route": "straight" },
+    { "id": "sanitizer-pep", "from": "sanitizer", "to": "pdp_pep", "variant": "emphasis", "route": "straight" },
+    { "id": "pdp-router", "from": "pdp_pep", "to": "router_mod", "variant": "emphasis", "route": "straight" },
+    { "id": "router-wf", "from": "router_mod", "to": "wf_engine", "variant": "emphasis", "route": "straight" },
+    { "id": "wf-lease", "from": "wf_engine", "to": "lease_mgr", "variant": "emphasis", "route": "straight" },
+    { "id": "lease-plan", "from": "lease_mgr", "to": "plan_mgr", "variant": "emphasis", "route": "straight" },
+    { "id": "plan-platform", "from": "plan_mgr", "to": "platform_mod", "variant": "emphasis", "route": "straight" },
+    { "id": "platform-broker", "from": "platform_mod", "to": "broker_audit", "variant": "security", "route": "straight" },
+    { "id": "wf-dstore", "from": "wf_engine", "to": "dstore_mod", "variant": "dashed", "route": "straight" }
+  ],
+  "cards": [
+    {
+      "dot": "violet",
+      "title": "Strict Unidirectional Flow",
+      "items": [
+        "Presentation -> Identity -> Policy -> Router -> Tools -> Workflows -> Adapters -> Audit",
+        "Lower layers never import or call upper layers",
+        "Zero circular dependencies across modules"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "State Isolation & Durability",
+      "items": [
+        "DurableStore abstract interface with SQLite and PostgreSQL implementations",
+        "Lease fencing tokens prevent split-brain during node failover",
+        "Tamper-evident SHA-256 hash chains verify audit integrity"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Zero-Trust Infrastructure Protection",
+      "items": [
+        "SSRF Guard blocks RFC 1918 internal probing and cloud metadata endpoints",
+        "Credential broker generates just-in-time tokens and never exposes raw secrets",
+        "Untrusted strings sanitized before reaching policy evaluation"
+      ]
+    }
+  ]
+}

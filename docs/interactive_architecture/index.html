@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Enterprise VCF MCP Interactive Architecture Portal</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --surface: #101626;
+      --surface-border: #1e293b;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --accent: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.15);
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --sidebar-width: 320px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Sidebar Navigation */
+    aside {
+      width: var(--sidebar-width);
+      background: var(--surface);
+      border-right: 1px solid var(--surface-border);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      z-index: 10;
+    }
+
+    .brand-header {
+      padding: 20px;
+      border-bottom: 1px solid var(--surface-border);
+    }
+
+    .brand-title {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-badge {
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background: var(--accent-glow);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      font-weight: 600;
+    }
+
+    .brand-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .security-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 10px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      background: rgba(16, 185, 129, 0.1);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      font-size: 11px;
+      color: var(--success);
+      font-weight: 500;
+    }
+
+    .security-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--success);
+      box-shadow: 0 0 6px var(--success);
+    }
+
+    .nav-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .nav-category {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      padding: 10px 10px 4px 10px;
+      font-weight: 600;
+    }
+
+    .nav-item {
+      display: flex;
+      flex-direction: column;
+      padding: 10px 12px;
+      border-radius: 6px;
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.15s ease;
+    }
+
+    .nav-item:hover {
+      background: rgba(255, 255, 255, 0.04);
+      color: var(--text);
+    }
+
+    .nav-item.active {
+      background: var(--accent-glow);
+      border-color: rgba(56, 189, 248, 0.4);
+      color: var(--accent);
+    }
+
+    .nav-item-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: inherit;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-item-tag {
+      font-size: 9px;
+      padding: 1px 4px;
+      border-radius: 3px;
+      background: rgba(255, 255, 255, 0.08);
+      font-weight: 500;
+      text-transform: uppercase;
+    }
+
+    .nav-item-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 3px;
+      line-height: 1.3;
+    }
+
+    .sidebar-footer {
+      padding: 14px 16px;
+      border-top: 1px solid var(--surface-border);
+      font-size: 11px;
+      color: var(--text-muted);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .code-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 4px;
+      margin-top: 4px;
+    }
+
+    .code-link {
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 10px;
+      padding: 2px 6px;
+      background: rgba(56, 189, 248, 0.08);
+      border-radius: 3px;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+
+    .code-link:hover {
+      background: rgba(56, 189, 248, 0.18);
+    }
+
+    /* Main Content Area */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* Top Controls Bar */
+    .topbar {
+      height: 54px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--surface-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      flex-shrink: 0;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .current-diagram-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .current-diagram-spec {
+      font-size: 11px;
+      color: var(--accent);
+      background: var(--accent-glow);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-family: monospace;
+    }
+
+    .topbar-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .ctrl-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--surface-border);
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 500;
+      padding: 6px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.15s ease;
+    }
+
+    .ctrl-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    .ctrl-btn.active {
+      background: var(--accent-glow);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+
+    /* Iframe Container */
+    .viewport {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      position: relative;
+      background: var(--bg);
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+
+    /* Guided Views Bar */
+    .views-bar {
+      background: #0c1220;
+      border-bottom: 1px solid var(--surface-border);
+      padding: 8px 20px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+    }
+
+    .views-label {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-right: 4px;
+      flex-shrink: 0;
+    }
+
+    .view-chip {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--text-muted);
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+
+    .view-chip:hover {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+    }
+
+    .view-chip.active {
+      background: var(--accent-glow);
+      border-color: var(--accent);
+      color: var(--accent);
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <aside>
+    <div class="brand-header">
+      <div class="brand-title">
+        VCF Control Plane
+        <span class="brand-badge">MCP 2026-07-28</span>
+      </div>
+      <div class="brand-sub">Broadcom VCF 9.0 & 9.1 Enterprise Flow</div>
+      <div class="security-badge">
+        <span class="security-dot"></span>
+        100% Offline • Zero Remote Calls
+      </div>
+    </div>
+
+    <div class="nav-list">
+      <div class="nav-category">System Architecture</div>
+      <button class="nav-item active" onclick="loadDiagram('hld_architecture.html', 'High-Level Design & Trust Boundaries', 'Architecture', hldViews)">
+        <div class="nav-item-title">
+          1. High-Level Design (HLD)
+          <span class="nav-item-tag">Boundary</span>
+        </div>
+        <div class="nav-item-desc">Enterprise IdP, untrusted AI runtime, edge gateways, durable state & VCF fleet.</div>
+      </button>
+
+      <button class="nav-item" onclick="loadDiagram('lld_architecture.html', 'Low-Level Design (LLD) 6-Layer Architecture', 'Architecture', lldViews)">
+        <div class="nav-item-title">
+          2. Low-Level Design (LLD)
+          <span class="nav-item-tag">6 Layers</span>
+        </div>
+        <div class="nav-item-desc">Strict unidirectional flow: Protocol -> Identity -> Policy -> Router -> Workflows -> Adapters.</div>
+      </button>
+
+      <button class="nav-item" onclick="loadDiagram('deployment_topology.html', 'Dual Deployment Topologies & High Availability', 'Architecture', depViews)">
+        <div class="nav-item-title">
+          3. Deployment & HA Topology
+          <span class="nav-item-tag">Infra</span>
+        </div>
+        <div class="nav-item-desc">Pattern 1 In-Network stdio vs Pattern 2 Gateway ALB; MODE A SQLite vs MODE B Postgres HA.</div>
+      </button>
+
+      <div class="nav-category">Execution & Protocols</div>
+      <button class="nav-item" onclick="loadDiagram('two_stage_execution.html', 'Two-Stage Authorization & TOCTOU-Safe Execution', 'Sequence', seqViews)">
+        <div class="nav-item-title">
+          4. Two-Stage Auth & Execution
+          <span class="nav-item-tag">TOCTOU</span>
+        </div>
+        <div class="nav-item-desc">Private discovery, dry-run revision pinning, four-eyes signed nonce & fencing tokens.</div>
+      </button>
+
+      <button class="nav-item" onclick="loadDiagram('resumable_workflow.html', 'Deterministic Resumable L3 Workflow & Saga Boundary', 'Workflow', wfViews)">
+        <div class="nav-item-title">
+          5. Deterministic L3 Workflow
+          <span class="nav-item-tag">Saga</span>
+        </div>
+        <div class="nav-item-desc">Domain upgrades (vcf_upgrade_domain), DRS evacuations & irreversible hypervisor flash.</div>
+      </button>
+
+      <button class="nav-item" onclick="loadDiagram('workflow_lifecycle.html', '12-State Workflow Lifecycle & 4-Phase Step Reconciliation', 'Lifecycle', lcViews)">
+        <div class="nav-item-title">
+          6. 12-State Engine Lifecycle
+          <span class="nav-item-tag">Lifecycle</span>
+        </div>
+        <div class="nav-item-desc">PREPARE outbox -> EXECUTE fenced -> RECONCILE remote truth -> VERIFY postcondition.</div>
+      </button>
+
+      <button class="nav-item" onclick="loadDiagram('async_tasks.html', 'MCP Tasks Extension & Async Protocol Sequence', 'Sequence', taskViews)">
+        <div class="nav-item-title">
+          7. MCP Tasks Protocol
+          <span class="nav-item-tag">Async</span>
+        </div>
+        <div class="nav-item-desc">Unguessable task IDs, real-time SSE push streaming, tasks/cancel & enumeration defense.</div>
+      </button>
+
+      <div class="nav-category">VCF Infrastructure & Ops</div>
+      <button class="nav-item" onclick="loadDiagram('vcf_admin_architecture.html', 'VCF Infrastructure Architectural Guide (VI Admin Perspective)', 'Architecture', vcfAdminViews)">
+        <div class="nav-item-title">
+          8. VI Admin Architecture
+          <span class="nav-item-tag">VCF Infra</span>
+        </div>
+        <div class="nav-item-desc">Physical & VIP ingress, zero-disk CyberArk PAM, two-stage approval gate & VCF fleet topology.</div>
+      </button>
+
+      <button class="nav-item" onclick="loadDiagram('vcf_ops_flow.html', 'VCF Operations Flow (VM Resize Lifecycle)', 'Sequence', vcfOpsViews)">
+        <div class="nav-item-title">
+          9. VCF Ops Lifecycle Flow
+          <span class="nav-item-tag">Ops Flow</span>
+        </div>
+        <div class="nav-item-desc">End-to-end trace: AI request -> vCenter dry run -> Change ticket approval -> PAM fetch -> vCenter task.</div>
+      </button>
+    </div>
+
+    <div class="sidebar-footer">
+      <div><strong>Target Codebase Symbols:</strong></div>
+      <div class="code-links">
+        <a class="code-link" href="../../src/vcf_enterprise_mcp/core/protocol.py">protocol.py</a>
+        <a class="code-link" href="../../src/vcf_enterprise_mcp/auth/idp.py">idp.py</a>
+        <a class="code-link" href="../../src/vcf_enterprise_mcp/policy/engine.py">policy.py</a>
+        <a class="code-link" href="../../src/vcf_enterprise_mcp/router/identity_router.py">router.py</a>
+        <a class="code-link" href="../../src/vcf_enterprise_mcp/workflows/execution_plans.py">plans.py</a>
+        <a class="code-link" href="../../src/vcf_enterprise_mcp/state/leases.py">leases.py</a>
+        <a class="code-link" href="../../src/vcf_enterprise_mcp/adapter/platform.py">platform.py</a>
+        <a class="code-link" href="../../src/vcf_enterprise_mcp/audit/recorder.py">audit.py</a>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Main Display -->
+  <main>
+    <div class="topbar">
+      <div class="topbar-left">
+        <div class="current-diagram-title" id="diagramTitle">High-Level Design & Trust Boundaries</div>
+        <div class="current-diagram-spec" id="diagramSpec">Architecture</div>
+      </div>
+      <div class="topbar-controls">
+        <button class="ctrl-btn" id="themeBtn" onclick="toggleTheme()">☀️ Light Mode</button>
+        <button class="ctrl-btn" id="playBtn" onclick="togglePresentation()">▶ Presentation Mode</button>
+        <button class="ctrl-btn" onclick="openFullscreen()">⛶ Fullscreen</button>
+        <button class="ctrl-btn" onclick="openStandalone()">↗ Open Tab</button>
+      </div>
+    </div>
+
+    <!-- Guided Views Chips -->
+    <div class="views-bar" id="viewsBar"></div>
+
+    <!-- Interactive Viewer -->
+    <div class="viewport">
+      <iframe id="diagramFrame" src="hld_architecture.html?theme=dark"></iframe>
+    </div>
+  </main>
+
+  <script>
+    let currentDiagram = 'hld_architecture.html';
+    let currentTheme = 'dark';
+    let isPresenting = false;
+
+    const hldViews = [
+      { id: 'trust-boundary', label: 'Identity & Trust Boundary' },
+      { id: 'policy-and-routing', label: 'Policy & Tool Routing' },
+      { id: 'execution-and-durability', label: 'Execution & Durability' }
+    ];
+
+    const lldViews = [
+      { id: 'ingress-and-identity', label: 'Ingress & Identity' },
+      { id: 'governance-and-routing', label: 'Governance & Routing' },
+      { id: 'execution-and-durability', label: 'State & Durability' }
+    ];
+
+    const depViews = [
+      { id: 'in-network-pattern', label: 'Pattern 1: In-Network' },
+      { id: 'gateway-ha-cluster', label: 'Pattern 2: Gateway Cluster' },
+      { id: 'storage-profiles', label: 'Storage: SQLite vs Postgres' }
+    ];
+
+    const seqViews = [
+      { id: 'discovery-and-plan', label: 'Discovery & Plan' },
+      { id: 'approval-gate', label: 'Four-Eyes Approval' },
+      { id: 'execution-and-audit', label: 'Fenced Execution & Audit' }
+    ];
+
+    const wfViews = [
+      { id: 'happy-path', label: 'Full Upgrade Path' },
+      { id: 'safety-and-approval', label: 'Vendor Checks & Approval' },
+      { id: 'saga-boundary', label: 'Irreversible Boundary' }
+    ];
+
+    const lcViews = [
+      { id: 'main-rail', label: 'Promotion Rail' },
+      { id: 'approval-and-cancel', label: 'Approval Wait & Cancel' },
+      { id: 'recovery-and-compensation', label: 'Saga Compensation' }
+    ];
+
+    const taskViews = [
+      { id: 'opt-in-and-dispatch', label: 'Opt-In & Materialization' },
+      { id: 'sse-and-polling', label: 'SSE Push & Monitoring' },
+      { id: 'cancellation', label: 'Graceful Cancellation' }
+    ];
+
+    const vcfAdminViews = [
+      { id: 'vcf-ingress', label: '1. Ingress & Automation (vRO/AI)' },
+      { id: 'vcf-security', label: '2. Zero-Trust PAM & Fencing' },
+      { id: 'vcf-egress', label: '3. Direct VCF Fleet Execution' }
+    ];
+
+    const vcfOpsViews = [
+      { id: 'dry-run-phase', label: '1. Dry-Run & Impact' },
+      { id: 'approval-phase', label: '2. Four-Eyes Approval' },
+      { id: 'execution-phase', label: '3. PAM Fetch & Fenced Execution' }
+    ];
+
+    function loadDiagram(file, title, spec, views) {
+      currentDiagram = file;
+      document.getElementById('diagramTitle').textContent = title;
+      document.getElementById('diagramSpec').textContent = spec;
+
+      // Update sidebar active class
+      document.querySelectorAll('.nav-item').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('onclick').includes(file));
+      });
+
+      // Render Views Chips
+      const viewsBar = document.getElementById('viewsBar');
+      viewsBar.innerHTML = '<span class="views-label">Preset Views:</span>';
+      
+      const allBtn = document.createElement('button');
+      allBtn.className = 'view-chip active';
+      allBtn.textContent = 'All Nodes (Default)';
+      allBtn.onclick = () => setView('');
+      viewsBar.appendChild(allBtn);
+
+      if (views && views.length) {
+        views.forEach(v => {
+          const chip = document.createElement('button');
+          chip.className = 'view-chip';
+          chip.textContent = v.label;
+          chip.onclick = (e) => {
+            document.querySelectorAll('.view-chip').forEach(c => c.classList.remove('active'));
+            chip.classList.add('active');
+            setView(v.id);
+          };
+          viewsBar.appendChild(chip);
+        });
+      }
+
+      updateIframe();
+    }
+
+    function setView(viewId) {
+      const frame = document.getElementById('diagramFrame');
+      const hash = viewId ? `#view=${viewId}` : '';
+      const params = `?theme=${currentTheme}${isPresenting ? '&present=1&play=1' : ''}`;
+      frame.src = `${currentDiagram}${params}${hash}`;
+    }
+
+    function updateIframe() {
+      const frame = document.getElementById('diagramFrame');
+      const params = `?theme=${currentTheme}${isPresenting ? '&present=1&play=1' : ''}`;
+      frame.src = `${currentDiagram}${params}`;
+    }
+
+    function toggleTheme() {
+      currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+      document.getElementById('themeBtn').textContent = currentTheme === 'dark' ? '☀️ Light Mode' : '🌙 Dark Mode';
+      updateIframe();
+    }
+
+    function togglePresentation() {
+      isPresenting = !isPresenting;
+      const btn = document.getElementById('playBtn');
+      btn.textContent = isPresenting ? '⏹ Stop Presentation' : '▶ Presentation Mode';
+      btn.classList.toggle('active', isPresenting);
+      updateIframe();
+    }
+
+    function openFullscreen() {
+      const frame = document.getElementById('diagramFrame');
+      if (frame.requestFullscreen) {
+        frame.requestFullscreen();
+      } else if (frame.webkitRequestFullscreen) {
+        frame.webkitRequestFullscreen();
+      }
+    }
+
+    function openStandalone() {
+      window.open(document.getElementById('diagramFrame').src, '_blank');
+    }
+
+    // Initialize with HLD
+    loadDiagram('hld_architecture.html', 'High-Level Design & Trust Boundaries', 'Architecture', hldViews);
+  </script>
+</body>
+</html>

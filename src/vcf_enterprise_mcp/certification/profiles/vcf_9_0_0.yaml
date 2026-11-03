@@ -1,0 +1,63 @@
+profile_name: "vcf_9_0_0"
+vcf_version: "9.0.0"
+component_versions:
+  sddc_manager: "9.0.0"
+  vcenter: "9.0.0"
+  nsx: "4.1.2"
+  vcf_operations: "9.0.0"
+operations:
+  - name: "get_domains"
+    component: "sddc_manager"
+    transport_route: "mediated"
+    required_capabilities: ["domain.lifecycle"]
+    description: "Enumerate workload domains via SDDC Manager API"
+    is_destructive: false
+    test_params: {}
+
+  - name: "get_system_health"
+    component: "sddc_manager"
+    transport_route: "mediated"
+    required_capabilities: ["system.health"]
+    description: "Query consolidated cross-stack health from SDDC Manager"
+    is_destructive: false
+    test_params:
+      datacenter_id: "dc1"
+
+  - name: "get_vms"
+    component: "vcenter"
+    transport_route: "direct"
+    required_capabilities: ["vm.lifecycle"]
+    description: "Query virtual machine inventory directly from vCenter REST API"
+    is_destructive: false
+    test_params:
+      cluster_id: "cluster-twin-a"
+
+  - name: "get_vm"
+    component: "vcenter"
+    transport_route: "direct"
+    required_capabilities: ["vm.lifecycle"]
+    description: "Inspect specific virtual machine directly from vCenter REST API"
+    is_destructive: false
+    test_params:
+      vm_id: "vm-twin-101"
+
+  - name: "power_vm"
+    component: "vcenter"
+    transport_route: "direct"
+    required_capabilities: ["vm.lifecycle"]
+    description: "Execute VM power state change directly on vCenter"
+    is_destructive: false
+    test_params:
+      vm_id: "vm-twin-101"
+      action: "start"
+
+  - name: "create_segment"
+    component: "nsx"
+    transport_route: "direct"
+    required_capabilities: ["network.segments"]
+    description: "Create overlay logical segment directly via NSX Policy API"
+    is_destructive: false
+    test_params:
+      segment_name: "seg-cert-900"
+      gateway_id: "t1-gw-01"
+      cidr: "172.28.3.1/24"
