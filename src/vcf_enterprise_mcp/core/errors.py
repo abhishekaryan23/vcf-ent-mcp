@@ -172,6 +172,10 @@ class ScopeViolationException(EnterpriseSecurityException):
         super().__init__(message, error_code=-32001, details=details)
 
 
+class AmbiguousResourceException(ScopeViolationException):
+    """Raised when a resource ID matches in more than one vCenter and the caller did not say which one."""
+
+
 class UnverifiedAPIContractException(VCFEnterpriseException):
     """Raised when a mutating operation targets an unverified vendor API contract in live mode (Finding F06 / R12)."""
     def __init__(self, message: str, details: Optional[Dict[str, Any]] = None):

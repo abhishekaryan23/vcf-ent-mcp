@@ -65,6 +65,7 @@ from vcf_enterprise_mcp.core.errors import (
 from vcf_enterprise_mcp.router.known_issues import KnownIssueRegistry
 from vcf_enterprise_mcp.policy.models import PolicyDecision, RiskClass
 from vcf_enterprise_mcp.setup.safety_profile import SafetyProfile, default_home
+from vcf_enterprise_mcp.config.settings import config_file_stamp
 from vcf_enterprise_mcp.auth.personal import ACCESS_PERSONAL, ACCESS_TEAM, local_user_id, personal_principal, resolve_access_mode
 from vcf_enterprise_mcp.workflows.personal_approval import APPROVAL_KEY, CLIENT_ELICITS, PersonalApproval
 
@@ -239,6 +240,28 @@ class EnterpriseMCPProtocolEngine:
                                 "additionalProperties": False},
                     "resume": {"type": "string", "description": "Opaque token from the previous vcf_setup result (clients without elicitation)."},
                     "restart": {"type": "boolean"},
+                },
+                "additionalProperties": False,
+            },
+            "_enterprise_meta": {"risk_class": RiskClass.SECURITY_SENSITIVE, "required_roles": SETUP_ADMIN_ROLES,
+                                 "level": "L0_SETUP", "control_plane_setup": True},
+        },
+        {
+            "name": "vcf_add_vcenter",
+            "description": (
+                "[L0_SETUP | MCP_ADMIN or VCF_PLATFORM_ADMIN only; no dry run, plan or approval] Attaches another vCenter, for "
+                "example a workload domain's, to this server. Give its address, plus 'username' when it needs its own service "
+                "account (an isolated SSO domain); without one it reuses the main vCenter account after the user confirms. The "
+                "password goes on a private local page, never in chat. Setup logs in and checks the account before saving. "
+                "Inventory tools then include this vCenter and VM changes for its VMs go to it. vCenters that SDDC Manager "
+                "reports are used automatically with the main account and need this only when that account cannot log in there."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "url": {"type": "string", "description": "The vCenter's address, e.g. https://vc-wld01.corp.example."},
+                    "username": {"type": "string", "description": "Its own service account, e.g. svc-mcp@wld01.local. Omit to reuse the main vCenter account. Never a password."},
+                    "resume": {"type": "string", "description": "Opaque token from the previous vcf_add_vcenter result (clients without elicitation)."},
                 },
                 "additionalProperties": False,
             },
@@ -444,6 +467,17 @@ class EnterpriseMCPProtocolEngine:
         signed = mgr.approve_plan(info.plan_id, pa.approver_principal(plan), channel="in_client")
         return {**arguments, "approval_id": signed.approval_id, "nonce": signed.nonce}, None
 
+    # (path, mtime) of the config file this engine was built from, when the server watches it for outside edits.
+    config_stamp: Optional[tuple] = None
+
+    async def reload_if_config_changed(self) -> None:
+        """An edit made outside this server, e.g. `vcf-mcp vcenter add` in a terminal, takes effect on the next request."""
+        if self.reloader is None or self.config_stamp is None:
+            return
+        if config_file_stamp() != self.config_stamp:
+            if not await self.reload_after_setup():
+                self.config_stamp = config_file_stamp()  # a broken file is reported once, not on every request
+
     async def reload_after_setup(self) -> bool:
         """Rebuilds this engine from the saved settings so completed setup takes effect without a restart."""
         if self.reloader is None:
@@ -453,9 +487,10 @@ class EnterpriseMCPProtocolEngine:
         except Exception:
             logger.exception("Could not reload settings after setup; restart the MCP server to apply them.")
             return False
-        reloader = self.reloader
+        reloader, watching = self.reloader, self.config_stamp is not None
         self.__dict__.update(fresh.__dict__)
         self.reloader = reloader
+        self.config_stamp = config_file_stamp() if watching else None
         self.pending_notifications.append({"jsonrpc": "2.0", "method": "notifications/tools/list_changed"})
         return True
 
@@ -465,7 +500,8 @@ class EnterpriseMCPProtocolEngine:
 
     def _build_raw_tool_definitions(self) -> List[Dict[str, Any]]:
         tool_capability_map = self.TOOL_CAPABILITY_MAP
-        raw = [dict(d) for d in self.SETUP_TOOL_DEFINITIONS]
+        # Attaching more vCenters needs a configured server; in setup mode only guided setup is offered.
+        raw = [dict(d) for d in self.SETUP_TOOL_DEFINITIONS if not (self.setup_mode and d["name"] == "vcf_add_vcenter")]
         for card in get_all_tool_cards():
             if self.setup_mode and card.name not in self.SETUP_MODE_TOOLS:
                 continue
@@ -516,7 +552,11 @@ class EnterpriseMCPProtocolEngine:
             "requestState": params.get("requestState"),
         }
         # The credential step may wait for the user's browser; keep the event loop free.
-        out = await asyncio.to_thread(wizard.run, principal, arguments, wizard_meta)
+        if tool_name == "vcf_add_vcenter":
+            from vcf_enterprise_mcp.setup.vcenters import VCenterAttacher
+            out = await asyncio.to_thread(VCenterAttacher(wizard).run, principal, arguments, wizard_meta)
+        else:
+            out = await asyncio.to_thread(wizard.run, principal, arguments, wizard_meta)
         if out.get("resultType") == "input_required":
             return out
         payload = out["structured"]
@@ -581,6 +621,9 @@ class EnterpriseMCPProtocolEngine:
         method = request.get("method")
         params = request.get("params") or {}
         auth_problem: Optional[str] = None
+        # Setup tools write the config themselves and reload when they finish; a reload in the middle would drop their state.
+        if method == "tools/list" or (method == "tools/call" and params.get("name") not in ("vcf_setup", "vcf_add_vcenter")):
+            await self.reload_if_config_changed()
 
         try:
             # 1. Enforce HTTP header agreement and extract W3C TraceContext
@@ -974,7 +1017,7 @@ class EnterpriseMCPProtocolEngine:
                 elicit_token = CLIENT_ELICITS.set(self._client_elicits(params))
 
                 try:
-                    if tool_name in ("vcf_setup", "vcf_access_report"):
+                    if tool_name in ("vcf_setup", "vcf_add_vcenter", "vcf_access_report"):
                         result = await self._call_setup_tool(tool_name, principal, arguments, params, trace_ctx.trace_id)
                         return {"jsonrpc": "2.0", "id": req_id, "result": result}
 

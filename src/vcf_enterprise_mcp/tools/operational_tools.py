@@ -12,7 +12,7 @@ from typing import Dict, Any, Optional
 from vcf_enterprise_mcp.auth.identity import Principal
 from vcf_enterprise_mcp.policy.models import RiskClass, CapabilityRole, NormalizedCapability
 from vcf_enterprise_mcp.adapter.platform import PlatformMode
-from vcf_enterprise_mcp.tools.base import BaseEnterpriseTool
+from vcf_enterprise_mcp.tools.base import BaseEnterpriseTool, vcenter_kw
 from vcf_enterprise_mcp.core.errors import InvalidArgumentException, UnverifiedAPIContractException
 from vcf_enterprise_mcp.workflows.execution_plans import ExecutionPlanManager
 
@@ -65,7 +65,7 @@ class VCFPowerVMTool(BaseEnterpriseTool):
             raise InvalidArgumentException(
                 f"Invalid power action '{action}'. Must be one of: start, stop, restart, reset, suspend."
             )
-        res = self.platform.power_vm(vm_id=vm_id, action=action)
+        res = self.platform.power_vm(vm_id=vm_id, action=action, **vcenter_kw(arguments))
         new_state = "POWERED_ON" if action in ["start", "restart", "reset"] else ("SUSPENDED" if action == "suspend" else "POWERED_OFF")
         return {
             "dry_run": False,
@@ -86,7 +86,7 @@ class VCFPowerVMTool(BaseEnterpriseTool):
         # Re-query actual provider infrastructure state (MAND-2, R10)
         vm_id = arguments.get("vm_id")
         if vm_id and self.platform:
-            vm_state = self.platform.get_vm(vm_id)
+            vm_state = self.platform.get_vm(vm_id, **vcenter_kw(arguments))
             if not isinstance(vm_state, dict):
                 return False, f"Provider power postcondition failed: Authoritative VM state for '{vm_id}' could not be read back."
             actual_state = vm_state.get("power_state")
@@ -115,7 +115,7 @@ class VCFResizeVMTool(BaseEnterpriseTool):
         cur_cpu = None
         if self.platform:
             try:
-                vm_obj = self.platform.get_vm(vm_id)
+                vm_obj = self.platform.get_vm(vm_id, **vcenter_kw(arguments))
                 if vm_obj and isinstance(vm_obj, dict):
                     cur_mem = vm_obj.get("memory_gb")
                     cur_cpu = vm_obj.get("cpu_cores")
@@ -190,7 +190,7 @@ class VCFResizeVMTool(BaseEnterpriseTool):
         if mem is None and cpu is None:
             raise InvalidArgumentException("Must specify at least one of 'memory_gb' or 'cpu_cores' to resize VM.")
 
-        res = self.platform.resize_vm(vm_id=vm_id, memory_gb=mem, cpu_cores=cpu)
+        res = self.platform.resize_vm(vm_id=vm_id, memory_gb=mem, cpu_cores=cpu, **vcenter_kw(arguments))
         return {
             "dry_run": False,
             "status": res.get("status", "SUCCESS"),
@@ -213,7 +213,7 @@ class VCFResizeVMTool(BaseEnterpriseTool):
         # Re-query actual provider infrastructure state (MAND-2, F12)
         vm_id = arguments.get("vm_id")
         if vm_id and self.platform:
-            vm_state = self.platform.get_vm(vm_id)
+            vm_state = self.platform.get_vm(vm_id, **vcenter_kw(arguments))
             if not isinstance(vm_state, dict):
                 return False, f"Provider postcondition verification failed: Authoritative VM state for '{vm_id}' could not be read back."
             # Extract actual memory supporting official nested vSphere structures
@@ -302,7 +302,7 @@ class VCFCreateSnapshotTool(BaseEnterpriseTool):
             )
         vm_id = arguments["vm_id"]
         snap_name = arguments["snapshot_name"]
-        res = self.platform.create_snapshot(vm_id=vm_id, snapshot_name=snap_name)
+        res = self.platform.create_snapshot(vm_id=vm_id, snapshot_name=snap_name, **vcenter_kw(arguments))
         return {
             "dry_run": False,
             "status": res.get("status", "SUCCESS"),
@@ -347,7 +347,7 @@ class VCFDeleteSnapshotTool(BaseEnterpriseTool):
     async def run_live(self, principal: Principal, arguments: Dict[str, Any]) -> Dict[str, Any]:
         vm_id = arguments["vm_id"]
         snapshot_id = arguments["snapshot_id"]
-        res = self.platform.delete_snapshot(vm_id=vm_id, snapshot_id=snapshot_id)
+        res = self.platform.delete_snapshot(vm_id=vm_id, snapshot_id=snapshot_id, **vcenter_kw(arguments))
         return {
             "dry_run": False,
             "status": res.get("status", "SUCCESS"),

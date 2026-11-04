@@ -153,7 +153,8 @@ def test_find_tool_routes_plain_requests(task, tool):
 
 def test_every_routed_tool_and_skill_exists():
     from vcf_enterprise_mcp.tools.find_tool import INTENTS
-    names = {c.name for c in ALL_ENTERPRISE_TOOLS} | {"vcf_access_report", "vcf_setup"}
+    from vcf_enterprise_mcp.core.protocol import EnterpriseMCPProtocolEngine
+    names = {c.name for c in ALL_ENTERPRISE_TOOLS} | {d["name"] for d in EnterpriseMCPProtocolEngine.SETUP_TOOL_DEFINITIONS}
     skills = {s.name for s in get_skill_registry().list_all_skills()}
     for tool, skill, *_ in INTENTS:
         assert tool in names

@@ -11,7 +11,7 @@ from typing import Dict, Any, List
 from vcf_enterprise_mcp.auth.identity import Principal
 from vcf_enterprise_mcp.policy.models import RiskClass, CapabilityRole, NormalizedCapability
 from vcf_enterprise_mcp.adapter.platform import PlatformMode
-from vcf_enterprise_mcp.tools.base import BaseEnterpriseTool
+from vcf_enterprise_mcp.tools.base import BaseEnterpriseTool, vcenter_kw
 from vcf_enterprise_mcp.core.errors import InvalidArgumentException
 
 
@@ -74,7 +74,7 @@ class VCFGetVMTool(BaseEnterpriseTool):
 
     async def run_live(self, principal: Principal, arguments: Dict[str, Any]) -> Dict[str, Any]:
         vm_id = arguments.get("vm_id", "vm-101")
-        vm = self.platform.get_vm(vm_id)
+        vm = self.platform.get_vm(vm_id, **vcenter_kw(arguments))
         if not vm and getattr(self.platform, "mode", None) == PlatformMode.REAL_VCF:
             return {"vm_id": vm_id, "status": "NOT_FOUND", "note": "No vCenter has a VM with this id; use vcf_list_vms to find the id."}
         if not vm:
@@ -322,7 +322,7 @@ class VCFListSnapshotsTool(BaseEnterpriseTool):
 
     async def run_live(self, principal: Principal, arguments: Dict[str, Any]) -> Dict[str, Any]:
         vm_id = arguments["vm_id"]
-        snapshots = self.platform.get_snapshots(vm_id=vm_id)
+        snapshots = self.platform.get_snapshots(vm_id=vm_id, **vcenter_kw(arguments))
         return {
             "vm_id": vm_id,
             "count": len(snapshots),

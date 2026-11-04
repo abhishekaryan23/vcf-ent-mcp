@@ -169,6 +169,22 @@ Setup prints a user code and waits (up to the code's lifetime, about 10 minutes)
 
 The refresh-token handling and this setup flow are adapted from the community project [vcf-orchestrator-mcp](https://github.com/imtrinity94/vcf-orchestrator-mcp) by imtrinity94 (MIT), whose service-account flow was verified on a real VCF Automation 9.1.1. See THIRD_PARTY_NOTICES.md.
 
+## 8. Several vCenters (workload domains)
+
+One server works with every vCenter in the estate.
+
+- **Found for you.** When SDDC Manager is configured, the server asks it for every vCenter (one per workload domain) and uses them with the main vCenter account. Nothing to add when that account exists there, which is the usual case when the workload domains share the management SSO domain.
+- **Attach the others.** A vCenter that SDDC Manager does not report, or one with an isolated SSO domain where the main account does not exist, is attached once. Ask the assistant ("attach vc-wld01.corp.example with svc-mcp@wld01.local"), which calls `vcf_add_vcenter`, or run it in a terminal:
+
+  ```bash
+  vcf-mcp vcenter add https://vc-wld01.corp.example --username svc-mcp@wld01.local
+  vcf-mcp vcenter list
+  vcf-mcp vcenter remove vc-wld01.corp.example
+  ```
+
+  With a username, the password goes on the private page (or a hidden terminal prompt). Without one, the main vCenter account is reused, which sends its password to that vCenter, so you confirm it yourself in a dialog or the terminal; the assistant cannot confirm it for you. Either way the server logs in and reads the account's access before anything is saved under `vcf.vcenters`. A running server picks the change up on its next request.
+- **Changes go to the right vCenter.** Inventory results carry a `vcenter` field. A VM change (power, resize, snapshot) goes to the vCenter that holds the VM, and the dry run records that vCenter in the plan you approve. VM IDs such as `vm-1001` are only unique inside one vCenter: when the same ID exists in two, the tool refuses and asks for the `vcenter` argument instead of guessing.
+
 ## Limits
 
 - The credential page is loopback-only. If the MCP server runs on a remote host, run `vcf-mcp credentials add` on that host instead (`--password-stdin` or `--password-file` when there is no terminal); setup tells you the exact command.

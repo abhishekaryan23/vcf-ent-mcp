@@ -93,6 +93,13 @@ class IdPConfig(BaseModel):
     jwks_cache_ttl_seconds: int = 3600
 
 
+class VCenterTarget(BaseModel):
+    """An extra vCenter (for example a workload domain's) attached with `vcf-mcp vcenter add` or vcf_add_vcenter."""
+    url: str                              # HTTPS base URL
+    username: Optional[str] = None        # its own service account (an isolated SSO domain); None reuses the main vCenter account
+    credential_ref: Optional[str] = None  # where that account's password lives in the secret store
+
+
 class UpstreamVCFConfig(BaseModel):
     # No default appliance name: an example FQDN must never end up as a real endpoint.
     sddc_manager_fqdn: Optional[str] = None
@@ -141,6 +148,9 @@ class UpstreamVCFConfig(BaseModel):
     allowed_cidrs: List[str] = []
     # Lab-only: let setup reach appliances on loopback (e.g. local mock appliances). Refused in production.
     allow_loopback_targets: bool = False
+    # Extra vCenters keyed by host name, on top of vcenter_url and those SDDC Manager reports. Inventory reads all of
+    # them; a VM change goes to the vCenter that holds the VM.
+    vcenters: Dict[str, VCenterTarget] = {}
     # FQDN -> base URL for discovered appliances (load balancer/proxy, or a lab simulator).
     endpoint_overrides: Dict[str, str] = {}
     # Explicit HTTPS proxy for appliance connections (CONNECT tunnel), e.g. http://proxy.example.internal:3128.
@@ -289,3 +299,12 @@ def get_enterprise_settings() -> EnterpriseSettings:
 def set_enterprise_settings(settings: EnterpriseSettings) -> None:
     global _settings_instance
     _settings_instance = settings
+
+
+def config_file_stamp() -> Optional[tuple]:
+    """(path, modification time) of the config file in use, or None when there is none: a change means it was edited."""
+    path = EnterpriseSettings.config_path()
+    try:
+        return str(path), path.stat().st_mtime_ns
+    except OSError:
+        return None

@@ -434,6 +434,16 @@ def build_parser() -> argparse.ArgumentParser:
     skills_export = skills_sub.add_parser("export", help="Export all role skills as SKILL.md files")
     skills_export.add_argument("--dir", default=".agents/skills", help="Output directory (default: .agents/skills)")
 
+    vc_parser = subparsers.add_parser("vcenter", help="Attach more vCenters (e.g. workload domains) to this server, list or remove them")
+    vc_sub = vc_parser.add_subparsers(dest="vcenter_action", help="vCenter actions")
+    vc_add = vc_sub.add_parser("add", help="Attach a vCenter: log in, check the account, save it (the running server picks it up)")
+    vc_add.add_argument("url", help="The vCenter's address, e.g. https://vc-wld01.corp.example")
+    vc_add.add_argument("--username", help="Its own service account (asks for the password at a hidden prompt). Omit to reuse the main vCenter account")
+    vc_add.add_argument("--yes", action="store_true", help="Reuse the main vCenter account without asking (its password is sent to this vCenter)")
+    vc_sub.add_parser("list", help="Show the main vCenter and the attached ones")
+    vc_rm = vc_sub.add_parser("remove", help="Detach a vCenter and delete its own saved password")
+    vc_rm.add_argument("host", help="The vCenter's host name as shown by 'vcf-mcp vcenter list'")
+
     cc_parser = subparsers.add_parser("client-config", help="Print a ready-to-paste MCP client configuration for an AI harness")
     cc_parser.add_argument("harness", choices=list(_HARNESSES))
     cc_parser.add_argument("--config", default=None, help="Path to the server config file (default: VCF_ENTERPRISE_MCP_CONFIG or ~/.vcf-mcp/config.yaml); a starter file is created if missing")
@@ -554,6 +564,8 @@ def _cmd_client_config(args: argparse.Namespace) -> int:
         "VCF_ENTERPRISE_MCP_CONFIG": config_path,
         "VCF_MCP_DB_PATH": db_path,
     }
+    if os.environ.get("VCF_MCP_HOME"):  # the server must use the same state folder (passwords, approvals) as this command
+        env["VCF_MCP_HOME"] = os.path.abspath(os.path.expanduser(os.environ["VCF_MCP_HOME"]))
     location, reload_hint = _HARNESS_INFO[args.harness]
     notes = [f"# Where it goes: {location}".replace("\n", "\n#   "), f"# To reload: {reload_hint}"]
     notes.append(f"# Config: {'created a starter config at' if created else 'using'} {config_path} (no appliance is configured until you run the guided setup)")
@@ -581,6 +593,79 @@ def _cmd_client_config(args: argparse.Namespace) -> int:
     # Notes go to stderr so stdout holds only the snippet and can be redirected to a file.
     print("\n".join(notes) + "\n", file=sys.stderr)
     print(_client_config_text(args.harness, _vcf_mcp_executable(), env))
+    return 0
+
+
+def _cmd_vcenter(args: argparse.Namespace) -> int:
+    """Attach, list or remove vCenters. Passwords are typed at a hidden prompt here, never into a chat."""
+    import getpass
+    from vcf_enterprise_mcp.config.settings import EnterpriseSettings
+    from vcf_enterprise_mcp.secrets.models import SecretValue
+    from vcf_enterprise_mcp.secrets.registry import get_default_secret_registry
+    from vcf_enterprise_mcp.setup.safety_profile import SafetyProfile, default_home
+    from vcf_enterprise_mcp.setup.vcenters import ENVIRONMENT, TENANT, VCenterAttacher, parse_vcenter_url, vcenter_reference
+    from vcf_enterprise_mcp.setup.wizard import SetupWizard
+    home = default_home()
+    config_path = EnterpriseSettings.config_path()
+    wizard = SetupWizard(home=home, safety_profile=SafetyProfile.at_home(home), secret_registry=get_default_secret_registry(),
+                         config_path=config_path, current_config=EnterpriseSettings.load_from_yaml(str(config_path)))
+    attacher = VCenterAttacher(wizard)
+    action = getattr(args, "vcenter_action", None)
+    if action in (None, "list"):
+        main_host, main_url, main_user, _ = attacher._main()
+        print(f"Main vCenter:  {main_host or '(none)'}  {main_url or ''}  account: {main_user or '-'}")
+        for host, t in sorted(attacher.attached().items()):
+            print(f"Attached:      {host}  {t.url}  account: {t.username or 'the main vCenter account'}")
+        if not attacher.attached():
+            print("No other vCenter attached. vCenters that SDDC Manager reports are used too, with the main account.")
+        return 0
+    if action == "remove":
+        if attacher.remove(args.host):
+            print(f"Detached {args.host.lower()}. The running server stops using it on its next request.")
+            return 0
+        print(f"{args.host} is not attached (see 'vcf-mcp vcenter list').", file=sys.stderr)
+        return 1
+    try:
+        host, url = parse_vcenter_url(args.url)
+    except Exception as exc:
+        print(str(exc), file=sys.stderr)
+        return 2
+    known = attacher._known(host)
+    if known:
+        print(f"{host} is {known}; nothing to add.", file=sys.stderr)
+        return 1
+    if args.username:
+        if not sys.stdin.isatty():
+            print("The password is asked at a hidden prompt: run this in an interactive terminal.", file=sys.stderr)
+            return 1
+        password = getpass.getpass(f"Password for '{args.username}' on {host} (hidden): ")
+        if not password:
+            print("No password entered; nothing was changed.", file=sys.stderr)
+            return 1
+        wizard.secrets.store(vcenter_reference(host), SecretValue(password), tenant_id=TENANT, environment_id=ENVIRONMENT,
+                             description=f"vCenter {host} service account {args.username}")
+    else:
+        main_user = attacher._main()[2]
+        if main_user and not args.yes:
+            if not sys.stdin.isatty():
+                print("Reusing the main vCenter account needs confirmation: run this in an interactive terminal, or pass --yes.", file=sys.stderr)
+                return 1
+            answer = input(f"Use the main vCenter account '{main_user}' on {host}? Its password will be sent to {host}. [y/N] ")
+            if answer.strip().lower() not in ("y", "yes"):
+                print("Nothing was changed. To use its own account: vcf-mcp vcenter add " + url + " --username <account>")
+                return 1
+    result = attacher.attach(host, url, args.username)
+    if result["status"] != "COMPLETE":
+        print(result["message"], file=sys.stderr)
+        problem = result.get("problem") or {}
+        if problem.get("fix"):
+            print(f"Fix ({problem.get('config_key')}):\n{problem['fix']}", file=sys.stderr)
+        return 1
+    print(result["message"])
+    print(f"Account: {result['account']} ({result['account_kind']}); roles: {', '.join(result.get('roles') or []) or 'none reported'}")
+    for warning in result.get("warnings") or []:
+        print(f"Warning: {warning}")
+    print("A running server picks this up on its next request; no restart is needed.")
     return 0
 
 
@@ -1224,6 +1309,8 @@ def main(argv: Optional[List[str]] = None) -> int:
         return _cmd_safety(args)
     elif args.command == "client-config":
         return _cmd_client_config(args)
+    elif args.command == "vcenter":
+        return _cmd_vcenter(args)
     elif args.command == "server" or args.command is None:
         from vcf_enterprise_mcp.core.server import main as server_main
         options = {"mode": getattr(args, "mode", None)}

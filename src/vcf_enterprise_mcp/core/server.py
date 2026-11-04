@@ -11,11 +11,12 @@ import os
 import json
 import asyncio
 import copy
+import urllib.parse
 import uuid
 from pathlib import Path
 from typing import Optional
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from vcf_enterprise_mcp.config.settings import EnterpriseSettings, get_enterprise_settings, set_enterprise_settings
+from vcf_enterprise_mcp.config.settings import EnterpriseSettings, config_file_stamp, get_enterprise_settings, set_enterprise_settings
 from vcf_enterprise_mcp.core.protocol import EnterpriseMCPProtocolEngine
 
 
@@ -246,6 +247,7 @@ async def run_stdio_control_plane(settings: Optional[EnterpriseSettings] = None)
     cfg = settings or get_enterprise_settings()
     engine = _build_engine_from_settings(cfg)
     engine.reloader = _make_reloader(cfg)
+    engine.config_stamp = config_file_stamp()  # a terminal edit (e.g. `vcf-mcp vcenter add`) is picked up on the next call
     await StdioSession(engine).run()
 
 
@@ -273,6 +275,20 @@ def _real_vcf_urls(v) -> dict:
         "vcf_operations": v.operations_url,
     }
     return {k: apply_endpoint_override(u, overrides) for k, u in urls.items()}
+
+
+def _same_endpoint(a: str, b: str) -> bool:
+    """Same host and port (443 when not given), so https://vc and https://vc:443 are one vCenter."""
+    pa, pb = urllib.parse.urlsplit(a), urllib.parse.urlsplit(b)
+    return (pa.hostname or "").lower() == (pb.hostname or "").lower() and (pa.port or 443) == (pb.port or 443)
+
+
+def _attached_vcenters(v) -> dict:
+    """vcf.vcenters as host -> (base URL after vcf.endpoint_overrides, username or None, credential reference or None)."""
+    from vcf_enterprise_mcp.adapter.connectivity import apply_endpoint_override
+    overrides = dict(getattr(v, "endpoint_overrides", None) or {})
+    return {host: (apply_endpoint_override(t.url, overrides), t.username, t.credential_ref)
+            for host, t in (getattr(v, "vcenters", None) or {}).items()}
 
 
 def _build_engine_from_settings(cfg: EnterpriseSettings) -> EnterpriseMCPProtocolEngine:
@@ -367,6 +383,9 @@ def _build_real_vcf_platform(cfg: EnterpriseSettings):
 
     v = cfg.vcf
     urls = _real_vcf_urls(v)
+    extra_vcenters = _attached_vcenters(v)
+    if not urls.get("vcenter") and extra_vcenters:  # only attached vCenters: the first one serves the vCenter tools
+        urls["vcenter"] = next(iter(extra_vcenters.values()))[0]
     if not any(urls.values()):
         raise ValueError("REAL_VCF mode needs at least one vcf endpoint URL (sddc_manager_url, vcenter_url, nsx_url or operations_url); "
                          "run guided setup (vcf_setup) to create them")
@@ -397,10 +416,25 @@ def _build_real_vcf_platform(cfg: EnterpriseSettings):
             return username, material.reveal_for_transport()
         return resolve
 
+    def account_supplier(ref: str, username: Optional[str]):
+        """An attached vCenter's own service account (its password is under ref)."""
+        def resolve():
+            material = broker.resolve_material(ref)
+            return (username or (material.username.reveal_for_transport() if material.username else "")), material.reveal_for_transport()
+        return resolve
+
     timeout = getattr(v, "timeout_seconds", 30.0)
+
+    def vcenter_auth(base_url: str):
+        """A vCenter attached with its own account logs in with it; every other vCenter uses the main vCenter account."""
+        for target_url, username, ref in extra_vcenters.values():
+            if ref and _same_endpoint(target_url, base_url):
+                return VCenterSessionAuth(base_url, transport, account_supplier(ref, username), timeout_seconds=timeout)
+        return VCenterSessionAuth(base_url, transport, supplier("vcenter"), timeout_seconds=timeout)
+
     builders = {
         "sddc_manager": lambda: SDDCManagerTokenAuth(urls["sddc_manager"], transport, supplier("sddc_manager"), timeout_seconds=timeout),
-        "vcenter": lambda: VCenterSessionAuth(urls["vcenter"], transport, supplier("vcenter"), timeout_seconds=timeout),
+        "vcenter": lambda: vcenter_auth(urls["vcenter"]),
         "nsx": lambda: NSXBasicAuth(supplier("nsx")),
         "vcf_operations": lambda: VCFOperationsTokenAuth(urls["vcf_operations"], transport, supplier("vcf_operations"), timeout_seconds=timeout, auth_source=v.operations_auth_source),
     }
@@ -429,7 +463,7 @@ def _build_real_vcf_platform(cfg: EnterpriseSettings):
         key = (provider_type, base_url.rstrip("/"))
         if key not in discovered:
             if provider_type == "vcenter":
-                discovered[key] = VCenterSessionAuth(base_url, transport, supplier("vcenter"), timeout_seconds=timeout)
+                discovered[key] = vcenter_auth(base_url)
             elif provider_type == "sddc_manager":
                 discovered[key] = SDDCManagerTokenAuth(base_url, transport, supplier("sddc_manager"), timeout_seconds=timeout)
             elif provider_type == "vcf_operations":
@@ -441,6 +475,8 @@ def _build_real_vcf_platform(cfg: EnterpriseSettings):
 
     platform.auth_factory = auth_factory
     platform.endpoint_overrides = dict(v.endpoint_overrides)
+    platform.extra_vcenters = {host: url for host, (url, _, _) in extra_vcenters.items()}
+    platform.main_vcenter_name = urllib.parse.urlsplit(v.vcenter_url).hostname if v.vcenter_url else None
 
     automation_ref = v.component_credential_refs.get("vcf_automation")
 

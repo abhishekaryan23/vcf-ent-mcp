@@ -88,6 +88,9 @@ INTENTS: List[tuple] = [
      "connect+appliance", "add+appliance", "add+account", "change+account", "change+credentials", "re-run+setup"], {},
      "Guided setup: connect VCF appliances, collect passwords on a private page, verify access, switch off risky actions. Needs the MCP_ADMIN or VCF_PLATFORM_ADMIN role."),
     ("vcf_access_report", None, ["what can you do", "my access", "permissions", "capabilities"], {}, "What this MCP can do with your access."),
+    ("vcf_add_vcenter", None, ["workload vcenter", "another vcenter", "second vcenter", "more vcenters", "multiple vcenters", "add+vcenter",
+     "attach+vcenter", "register+vcenter", "workload+domain+vcenter", "isolated+sso"], {"url": "https://<vcenter host>", "username": "<its service account, optional>"},
+     "Attach another vCenter (e.g. a workload domain with its own SSO domain). The password goes on a private page; never ask for it in chat."),
 ]
 
 _WORD = re.compile(r"[a-z0-9\-]+")

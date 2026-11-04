@@ -61,6 +61,10 @@ class PlatformClient:
         self.auth_factory = None
         # FQDN -> base URL for discovered appliances behind a load balancer/proxy, or a lab simulator.
         self.endpoint_overrides: Dict[str, str] = {}
+        # Real-VCF only: vCenters attached in vcf.vcenters (host name -> base URL), and the host name of the configured
+        # vCenter, so every vCenter can be named. Set by the server builder.
+        self.extra_vcenters: Dict[str, str] = {}
+        self.main_vcenter_name: Optional[str] = None
         self.last_inventory_errors: List[Dict[str, Any]] = []
         self.automation = None  # (base_url, auth) when VCF Automation is configured
         self.orchestrator = None  # dict(url, auth, managed_category, module_prefix, ...) when Orchestrator is configured
@@ -132,26 +136,49 @@ class PlatformClient:
         }
 
     def _vcenter_providers(self) -> List[tuple]:
-        """Real VCF: one provider per vCenter discovered from SDDC Manager (each workload domain has its
-        own vCenter). Falls back to the configured vCenter when discovery is unavailable."""
+        """Real VCF: one provider per vCenter, named by host: those SDDC Manager reports (each workload domain has its
+        own vCenter) plus those attached in vcf.vcenters, and the configured one. With no other vCenter known it is the
+        configured vCenter alone, unnamed, as before."""
         entry = self.registry.resolve("vm.lifecycle")
-        configured = [(None, VCenterProvider(endpoint_url=entry.endpoint_url, transport=self.transport,
-                                             auth=self._auth_for("vcenter"), api_version=entry.api_version))]
+        main = VCenterProvider(endpoint_url=entry.endpoint_url, transport=self.transport,
+                               auth=self._auth_for("vcenter"), api_version=entry.api_version)
         if self.auth_factory is None:
-            return configured
+            return [(None, main)]
+        targets: Dict[str, str] = {}
         try:
             sddc_entry = self.registry.resolve("domain.lifecycle")
             sddc = SDDCManagerProvider(endpoint_url=sddc_entry.endpoint_url, transport=self.transport,
                                        auth=self._auth_for("sddc_manager"), api_version=sddc_entry.api_version)
-            fqdns = [vc.get("fqdn") for vc in (sddc.request("GET", "/v1/vcenters").json() or {}).get("elements", []) if vc.get("fqdn")]
+            for vc in (sddc.request("GET", "/v1/vcenters").json() or {}).get("elements", []):
+                if vc.get("fqdn"):
+                    targets[vc["fqdn"]] = self.endpoint_overrides.get(vc["fqdn"]) or f"https://{vc['fqdn']}"
         except Exception:
-            return configured
-        out = []
-        for fqdn in fqdns:
-            url = self.endpoint_overrides.get(fqdn) or f"https://{fqdn}"
-            out.append((fqdn, VCenterProvider(endpoint_url=url, transport=self.transport, auth=self.auth_factory("vcenter", url),
-                                              api_version=entry.api_version)))
-        return out or configured
+            pass
+        for host, url in self.extra_vcenters.items():
+            if not any(h.lower() == host.lower() for h in targets):
+                targets[host] = url
+        if not targets:
+            return [(None, main)]
+        if entry.endpoint_url.rstrip("/") not in {u.rstrip("/") for u in targets.values()}:
+            targets = {self.main_vcenter_name or entry.endpoint_url: entry.endpoint_url, **targets}
+        return [(fqdn, VCenterProvider(endpoint_url=url, transport=self.transport, auth=self.auth_factory("vcenter", url),
+                                       api_version=entry.api_version)) for fqdn, url in targets.items()]
+
+    def _named_vcenters(self) -> List[tuple]:
+        """(name, provider) for every vCenter; the configured one is named by its host even when it is the only one."""
+        return [(fqdn or self.main_vcenter_name, vc) for fqdn, vc in self._vcenter_providers()]
+
+    def _vcenter_for(self, vcenter: Optional[str]) -> VCenterProvider:
+        """The vCenter a VM change goes to: the one named, else the configured vCenter."""
+        named = self._named_vcenters()
+        if not vcenter:
+            entry = self.registry.resolve("vm.lifecycle")
+            return next((vc for _, vc in named if vc.endpoint_url.rstrip("/") == entry.endpoint_url.rstrip("/")), named[0][1])
+        for name, vc in named:
+            if name and name.lower() == vcenter.lower():
+                return vc
+        from vcf_enterprise_mcp.core.errors import InvalidArgumentException
+        raise InvalidArgumentException(f"Unknown vCenter '{vcenter}'. Known vCenters: {', '.join(n for n, _ in named if n) or 'none'}.")
 
     def _across_vcenters(self, fetch) -> List[Dict[str, Any]]:
         """Runs fetch(provider) on every vCenter, tags items with their vCenter, and records unreachable ones."""
@@ -522,16 +549,29 @@ class PlatformClient:
             return [v for v in vms if v.get("cluster") == cluster_id]
         return vms
 
-    def get_vm(self, vm_id: str) -> Optional[Dict[str, Any]]:
+    def get_vm(self, vm_id: str, vcenter: Optional[str] = None) -> Optional[Dict[str, Any]]:
         if self.mode == PlatformMode.REAL_VCF:
-            for fqdn, vc in self._vcenter_providers():
+            providers = self._vcenter_providers()
+            if vcenter:
+                providers = [(f, vc) for f, vc in providers if (f or self.main_vcenter_name or "").lower() == vcenter.lower()]
+                if not providers:
+                    self._vcenter_for(vcenter)  # raises, naming the known vCenters
+            found = []
+            for fqdn, vc in providers:
                 try:
                     vm = vc.get_vm(vm_id)
                 except Exception:
                     continue
                 if vm:
-                    return dict(vm, vcenter=fqdn) if fqdn else vm
-            return None
+                    found.append(dict(vm, vcenter=fqdn) if fqdn else vm)
+            if len(found) > 1:
+                # VM IDs are only unique inside one vCenter: never guess which VM is meant.
+                from vcf_enterprise_mcp.core.errors import AmbiguousResourceException
+                names = ", ".join(str(v.get("vcenter")) for v in found)
+                raise AmbiguousResourceException(
+                    f"VM '{vm_id}' exists in more than one vCenter ({names}). Say which one with the 'vcenter' argument.",
+                    details={"vm_id": vm_id, "vcenters": [v.get("vcenter") for v in found]})
+            return found[0] if found else None
         elif self.mode == PlatformMode.DIGITAL_TWIN:
             dt = DigitalTwinProvider(
                 endpoint_url=self.digital_twin_url,
@@ -547,15 +587,9 @@ class PlatformClient:
                 return v
         return None
 
-    def power_vm(self, vm_id: str, action: str) -> Dict[str, Any]:
+    def power_vm(self, vm_id: str, action: str, vcenter: Optional[str] = None) -> Dict[str, Any]:
         if self.mode == PlatformMode.REAL_VCF:
-            provider_entry = self.registry.resolve("vm.lifecycle")
-            vc = VCenterProvider(
-                endpoint_url=provider_entry.endpoint_url,
-                transport=self.transport,
-                auth=self._auth_for("vcenter"),
-                api_version=provider_entry.api_version,
-            )
+            vc = self._vcenter_for(vcenter)
             res = vc.power_vm(vm_id, action)
             self.update_resource_revision(vm_id)
             return res
@@ -592,15 +626,10 @@ class PlatformClient:
             "new_power_state": new_power,
         }
 
-    def resize_vm(self, vm_id: str, memory_gb: Optional[int] = None, cpu_cores: Optional[int] = None) -> Dict[str, Any]:
+    def resize_vm(self, vm_id: str, memory_gb: Optional[int] = None, cpu_cores: Optional[int] = None,
+                  vcenter: Optional[str] = None) -> Dict[str, Any]:
         if self.mode == PlatformMode.REAL_VCF:
-            provider_entry = self.registry.resolve("vm.lifecycle")
-            vc = VCenterProvider(
-                endpoint_url=provider_entry.endpoint_url,
-                transport=self.transport,
-                auth=self._auth_for("vcenter"),
-                api_version=provider_entry.api_version,
-            )
+            vc = self._vcenter_for(vcenter)
             res = vc.resize_vm(vm_id, memory_gb, cpu_cores)
             self.update_resource_revision(vm_id)
             return res
@@ -645,15 +674,9 @@ class PlatformClient:
             "status": "SUCCESS",
         }
 
-    def create_snapshot(self, vm_id: str, snapshot_name: str) -> Dict[str, Any]:
+    def create_snapshot(self, vm_id: str, snapshot_name: str, vcenter: Optional[str] = None) -> Dict[str, Any]:
         if self.mode == PlatformMode.REAL_VCF:
-            provider_entry = self.registry.resolve("vm.lifecycle")
-            vc = VCenterProvider(
-                endpoint_url=provider_entry.endpoint_url,
-                transport=self.transport,
-                auth=self._auth_for("vcenter"),
-                api_version=provider_entry.api_version,
-            )
+            vc = self._vcenter_for(vcenter)
             res = vc.create_snapshot(vm_id, snapshot_name)
             self.update_resource_revision(vm_id)
             return res
@@ -679,7 +702,14 @@ class PlatformClient:
         self._snapshots.setdefault(vm_id, []).append(snap_rec)
         return snap_rec
 
-    def get_snapshots(self, vm_id: str) -> List[Dict[str, Any]]:
+    def _no_real_snapshot_api(self, what: str) -> None:
+        if self.mode == PlatformMode.REAL_VCF:
+            from vcf_enterprise_mcp.core.errors import UnverifiedAPIContractException
+            raise UnverifiedAPIContractException(
+                f"{what} on a real vCenter is not implemented yet, so nothing was read or changed. Use the vSphere Client for now.")
+
+    def get_snapshots(self, vm_id: str, vcenter: Optional[str] = None) -> List[Dict[str, Any]]:
+        self._no_real_snapshot_api("Listing snapshots")
         if self.mode == PlatformMode.DIGITAL_TWIN and hasattr(DigitalTwinProvider, "get_snapshots"):
             dt = DigitalTwinProvider(
                 endpoint_url=self.digital_twin_url,
@@ -689,7 +719,8 @@ class PlatformClient:
             return dt.get_snapshots(vm_id)
         return list(self._snapshots.get(vm_id, []))
 
-    def delete_snapshot(self, vm_id: str, snapshot_id: str) -> Dict[str, Any]:
+    def delete_snapshot(self, vm_id: str, snapshot_id: str, vcenter: Optional[str] = None) -> Dict[str, Any]:
+        self._no_real_snapshot_api("Deleting snapshots")
         snaps = self._snapshots.get(vm_id, [])
         self._snapshots[vm_id] = [s for s in snaps if s.get("snapshot_id") != snapshot_id]
         self.update_resource_revision(vm_id)

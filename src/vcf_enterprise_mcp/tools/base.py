@@ -34,6 +34,7 @@ from vcf_enterprise_mcp.core.errors import (
     KnownIssueBlockedException,
     VersionMismatchException,
     ScopeViolationException,
+    InvalidArgumentException,
     AuthorizationDeniedException,
 )
 from vcf_enterprise_mcp.workflows.execution_plans import ExecutionPlanManager
@@ -43,6 +44,11 @@ from vcf_enterprise_mcp.router.known_issues import KnownIssueRegistry
 from vcf_enterprise_mcp.core.schema_validator import validate_tool_arguments
 from vcf_enterprise_mcp.router.catalog import get_tool_card_by_name
 from vcf_enterprise_mcp.core.headers import get_current_trace_context
+
+
+def vcenter_kw(arguments: Dict[str, Any]) -> Dict[str, Any]:
+    """The VM's vCenter as a keyword argument, only when known (several vCenters attached); otherwise nothing."""
+    return {"vcenter": arguments["vcenter"]} if arguments.get("vcenter") else {}
 
 
 class BaseEnterpriseTool:
@@ -120,7 +126,7 @@ class BaseEnterpriseTool:
         vm_id = arguments.get("vm_id")
         if vm_id and hasattr(self, "platform") and self.platform:
             try:
-                vm_info = self.platform.get_vm(vm_id)
+                vm_info = self.platform.get_vm(vm_id, **vcenter_kw(arguments))
                 if isinstance(vm_info, dict):
                     cur_cluster = vm_info.get("cluster_id") or vm_info.get("cluster")
                     if arguments.get("cluster_id") and cur_cluster and arguments["cluster_id"] != cur_cluster:
@@ -137,6 +143,9 @@ class BaseEnterpriseTool:
                         )
                     if cur_domain:
                         arguments["domain_id"] = cur_domain
+                    # With several vCenters, pin the one holding the VM: the plan is bound to it, and the change goes there.
+                    if vm_info.get("vcenter"):
+                        arguments["vcenter"] = vm_info["vcenter"]
 
                     # Resource tenant/environment ownership check (R02)
                     res_tenant = vm_info.get("tenant_id")
@@ -164,6 +173,8 @@ class BaseEnterpriseTool:
                         trace_id=trace_id,
                     )
                 raise
+            except InvalidArgumentException:
+                raise  # e.g. an unknown vCenter name
             except Exception:
                 pass
 

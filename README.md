@@ -55,6 +55,10 @@ python tools/demo_live/try_setup_in_claude_code.py
 
 It starts a simulated VCF 9 estate (12 HTTPS appliances with their own certificates), runs `vcf-mcp client-config` in a throwaway folder and opens Claude Code with only this MCP server loaded (your own Claude Code configuration is not changed). Ask it to "set up VCF MCP": the questions appear as Claude Code dialogs sent by the server, the passwords go into private pages in your browser, and the server checks what each account can do. The only lab-only step is a name-to-address map for the simulator's host names, the job DNS does in a real network.
 
+### Several vCenters
+
+vCenters that SDDC Manager reports are used automatically. Attach any other one, for example a workload domain with its own SSO domain, by asking the assistant or with `vcf-mcp vcenter add https://vc-wld01.corp.example --username svc-mcp@wld01.local`. Each VM change goes to the vCenter that holds the VM. See [Several vCenters](docs/guided_setup.md#8-several-vcenters-workload-domains).
+
 ## Project status
 
 | Area | State |
@@ -76,6 +80,7 @@ Tracked from the [independent review of 2026-11-02](docs/audits/independent_revi
 - **Credential binding (F13):** secrets are stored per component, not per endpoint and username. Re-running setup with a different account can reuse the previous password until you delete it (`vcf-mcp credentials delete local://env-prod/vcf-mcp-<component>`, with `<component>` one of `vcenter`, `sddc-manager`, `nsx`, `vcf-operations`; `vcf-mcp credentials list` shows the references).
 - **Federated accounts (F21):** NSX Basic auth and the SDDC Manager token call need local or LDAP accounts; accounts that exist only through VCF SSO / Identity Broker federation may not be able to log in through these API flows. Setup does not detect this yet.
 - **Setup coverage (F4):** the conversational setup does not ask for the VCF Operations `authSource` (set `vcf.operations_auth_source` in `config.yaml`, see [Configuration](#configuration-reference)), and it offers a CIDR for a non-private management network only after the access check was blocked. Its network questions are CA bundle, proxy and allowlist entries. VCF Automation / Orchestrator credentials are no longer a gap, but they are collected by the separate terminal command `vcf-mcp setup automation`, not in the conversation.
+- **Snapshots on a real vCenter:** `vcf_create_snapshot` works; listing and deleting snapshots are not implemented against a real vCenter yet and say so instead of answering from local data.
 - **Unverified against live VCF:** all appliance behaviour, including auth flows, was developed against simulators and the published specs.
 
 ---
