@@ -301,6 +301,12 @@ def set_enterprise_settings(settings: EnterpriseSettings) -> None:
     _settings_instance = settings
 
 
+def attached_vcenters(vcf: Any) -> Dict[str, VCenterTarget]:
+    """vcf.vcenters as VCenterTarget objects. Without pydantic the config loader keeps nested entries as plain mappings."""
+    return {host: t if isinstance(t, VCenterTarget) else VCenterTarget(**t)
+            for host, t in (getattr(vcf, "vcenters", None) or {}).items()}
+
+
 def config_file_stamp() -> Optional[tuple]:
     """(path, modification time) of the config file in use, or None when there is none: a change means it was edited."""
     path = EnterpriseSettings.config_path()

@@ -160,9 +160,25 @@ class MultiVCenterPlatformTests(unittest.TestCase):
         self.assertIn((WLD, WLD_USER), self.estate.logins)  # the attached vCenter's own account, not the main one
         self.assertNotIn((WLD, MAIN_USER), self.estate.logins)
 
+    def test_attached_vcenters_as_plain_mappings(self):
+        # Without pydantic (it is not a dependency) the config loader keeps nested entries as dicts.
+        cfg = self.settings()
+        cfg.vcf.vcenters = {WLD: {"url": f"https://{WLD}", "username": WLD_USER, "credential_ref": vcenter_reference(WLD)}}
+        platform = server._build_real_vcf_platform(cfg)
+        self.assertIn(WLD, {v["vcenter"] for v in platform.get_vms()})
+        self.assertIn((WLD, WLD_USER), self.estate.logins)
+
     def test_attached_vcenter_without_sddc_manager(self):
         platform = server._build_real_vcf_platform(self.settings(sddc=False))
         self.assertEqual({v["vcenter"] for v in platform.get_vms()}, {MGMT, WLD})
+
+    def test_a_vcenter_the_main_account_cannot_log_in_to_says_how_to_attach_it(self):
+        self.estate.sddc_lists = [MGMT, WLD]  # SDDC Manager reports it, but its SSO domain has no main account
+        platform = server._build_real_vcf_platform(self.settings(attach=False))
+        self.assertEqual({v["vcenter"] for v in platform.get_vms()}, {MGMT})
+        [problem] = platform.last_inventory_errors
+        self.assertEqual(problem["vcenter"], WLD)
+        self.assertIn("vcf_add_vcenter", problem["fix"])
 
     def test_a_vm_id_in_two_vcenters_is_refused_until_the_vcenter_is_named(self):
         platform = server._build_real_vcf_platform(self.settings())

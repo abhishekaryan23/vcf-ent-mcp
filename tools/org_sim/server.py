@@ -107,6 +107,10 @@ class Sim:
         self.model = model
         self.s = model.build_state(scenario)
         self.password = (state_dir / "password").read_text().strip()
+        # Optional: vCenters with their own SSO domain (an isolated workload domain), read from <state-dir>/isolated_sso.json
+        # as {"<vcenter key>": "<sso domain>"}. Their login accepts only accounts of that domain, as a real one would.
+        sso_file = state_dir / "isolated_sso.json"
+        self.isolated_sso = json.loads(sso_file.read_text()) if sso_file.exists() else {}
         self.sessions = {}
         self.lock = threading.Lock()
         # VCF Automation identity: service accounts (OAuth clients), device codes, rotating refresh tokens.
@@ -245,6 +249,9 @@ class Sim:
         vc = self.s["vcenters"][app]
         if path == "/api/session" and method == "POST":
             user = self._basic(h)
+            domain = self.isolated_sso.get(app)
+            if user and domain and user.rpartition("@")[2].lower() != domain.lower():
+                user = None  # an account of another SSO domain does not exist here
             if not user:
                 return 401, {"error_type": "UNAUTHENTICATED", "messages": [{"default_message": "Authentication required."}]}, None
             if vc["services"]["sts"]["state"] != "STARTED":

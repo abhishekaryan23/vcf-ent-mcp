@@ -286,9 +286,10 @@ def _same_endpoint(a: str, b: str) -> bool:
 def _attached_vcenters(v) -> dict:
     """vcf.vcenters as host -> (base URL after vcf.endpoint_overrides, username or None, credential reference or None)."""
     from vcf_enterprise_mcp.adapter.connectivity import apply_endpoint_override
+    from vcf_enterprise_mcp.config.settings import attached_vcenters
     overrides = dict(getattr(v, "endpoint_overrides", None) or {})
     return {host: (apply_endpoint_override(t.url, overrides), t.username, t.credential_ref)
-            for host, t in (getattr(v, "vcenters", None) or {}).items()}
+            for host, t in attached_vcenters(v).items()}
 
 
 def _build_engine_from_settings(cfg: EnterpriseSettings) -> EnterpriseMCPProtocolEngine:

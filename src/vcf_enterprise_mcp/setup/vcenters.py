@@ -64,7 +64,8 @@ class VCenterAttacher:
         return host, url, username, ref
 
     def attached(self) -> Dict[str, Any]:
-        return dict(getattr(self.w._vcf(), "vcenters", None) or {})
+        from vcf_enterprise_mcp.config.settings import attached_vcenters
+        return attached_vcenters(self.w._vcf())
 
     def _known(self, host: str) -> Optional[str]:
         main_host = self._main()[0]

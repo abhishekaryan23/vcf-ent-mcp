@@ -196,6 +196,10 @@ class PlatformClient:
                 from vcf_enterprise_mcp.adapter.connectivity import classify_connection_error
                 problem = classify_connection_error(exc, self.endpoint_overrides.get(fqdn) or f"https://{fqdn}")
                 entry = {"vcenter": fqdn, "error": type(exc).__name__, "cause": problem.cause}
+                if (getattr(exc, "details", None) or {}).get("status_code") == 401:  # the account does not exist or is not accepted there
+                    entry["fix"] = (f"The vCenter account that works elsewhere cannot log in to {fqdn} (for example its workload domain has its "
+                                    f"own SSO domain). Attach it with its own service account: vcf_add_vcenter with url https://{fqdn} and that "
+                                    "account's username, or 'vcf-mcp vcenter add' in a terminal.")
                 if problem.mcp_config_problem:  # our own allowlist, not the appliance: say so and name the key to change
                     entry.update(note="Blocked by this MCP's network allowlist (not an appliance fault).", config_key=problem.config_key, fix=problem.fix)
                 self.last_inventory_errors.append(entry)
